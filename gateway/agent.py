@@ -40,7 +40,10 @@ class GrokClient:
                     headers={"Authorization": f"Bearer {self.api_key}"})
             if resp.status_code != 200:
                 raise GrokError(f"grok {resp.status_code}: {resp.text[:200]}")
-            return resp.json()
+            try:
+                return resp.json()
+            except ValueError as e:
+                raise GrokError(f"bad json: {e}") from e
         except httpx.HTTPError as e:
             raise GrokError(str(e)) from e
 

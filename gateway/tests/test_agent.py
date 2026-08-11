@@ -83,6 +83,52 @@ async def test_malformed_tool_args_fed_back(tmp_path):
     assert out["results"][0]["ok"] is False
 
 
+@pytest.mark.asyncio
+async def test_malformed_response_shape_falls_back(tmp_path):
+    """Regression (C2): a 200 response with an unexpected shape must trigger
+    the rules fallback (KeyError/IndexError path), not crash run_cycle."""
+    agent, _ = make_agent(tmp_path, StubClient({"unexpected": True}))
+    out = await agent.run_cycle(SNAP)  # 35°C → fallback fan on
+    assert out["source"] == "fallback"
+    assert any(c["name"] == "set_fan" for c in out["tool_calls"])
+
+
+@pytest.mark.asyncio
+async def test_chat_non_json_body_raises_grok_error(monkeypatch):
+    """Regression (C2): a 200 with a non-JSON body must surface as GrokError
+    (caught by run_cycle's fallback), not a raw JSONDecodeError."""
+    import json as _json
+    from gateway.agent import GrokClient
+
+    class FakeResp:
+        status_code = 200
+        text = "<html>oops</html>"
+
+        def json(self):
+            raise _json.JSONDecodeError("Expecting value", self.text, 0)
+
+    class FakeClient:
+        def __init__(self, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, *a, **kw):
+            return FakeResp()
+
+    monkeypatch.setattr("gateway.agent.httpx.AsyncClient", FakeClient)
+    client = GrokClient.__new__(GrokClient)
+    client.base_url = "http://x"
+    client.api_key = "k"
+    client.model = "m"
+    with pytest.raises(GrokError, match="bad json"):
+        await client.chat([], [])
+
+
 def test_context_includes_snapshot():
     agent = Agent.__new__(Agent)
     agent.memory = None
