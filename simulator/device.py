@@ -209,6 +209,7 @@ class SimDevice:
 
     # ── run loop ────────────────────────────────────────────────────
     async def run(self, cycles: int = 10_000) -> None:
+        consecutive_errors = 0
         for i in range(cycles):
             self.room.tick(1.0 * self.speed)
             if self._motion_clear_at is not None:
@@ -216,9 +217,18 @@ class SimDevice:
                 if self._motion_clear_at <= 0:
                     self.room.force(motion=False)
                     self._motion_clear_at = None
-            if i % max(1, int(self.heartbeat_s)) == 0:
-                await self.send_sense("heartbeat", "periodic")
-            await self.poll_commands()
+            try:
+                if i % max(1, int(self.heartbeat_s)) == 0:
+                    await self.send_sense("heartbeat", "periodic")
+                await self.poll_commands()
+                consecutive_errors = 0
+            except httpx.HTTPError as e:
+                # Gateway restart / transient network failure must not kill
+                # the simulator — back off and keep running.
+                consecutive_errors += 1
+                backoff = min(2.0 * consecutive_errors, 30.0)
+                print(f"gateway unreachable ({e}); retry in {backoff:.0f}s")
+                await asyncio.sleep(backoff)
             await asyncio.sleep(1.0 / self.speed)
 
 
