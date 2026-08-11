@@ -22,11 +22,13 @@ class RoomModel:
         self.oled: list[str] = ["GrokGuardian", "sim"]
         self._elapsed = 0.0
         self._scenario: dict | None = None
+        self._fired: set[int] = set()
         self._rng = random.Random(42)
 
     def apply_scenario(self, scenario: dict) -> None:
         self._scenario = scenario
         self._elapsed = 0.0
+        self._fired: set[int] = set()
 
     def force(self, **kwargs) -> None:
         for k, v in kwargs.items():
@@ -35,12 +37,14 @@ class RoomModel:
 
     def tick(self, dt_s: float) -> None:
         self._elapsed += dt_s
-        # scripted overrides: apply every keyframe at or before elapsed time
-        # (cumulative, idempotent — robust to large dt and to at_s=0)
+        # scripted overrides: fire each keyframe once when its time is reached
+        # (index-tracked so at_s=0 fires on the first tick and large dt
+        # doesn't skip frames; after firing, physics drifts naturally)
         if self._scenario:
-            for frame in self._scenario.get("script", []):
-                if frame["at_s"] <= self._elapsed:
+            for i, frame in enumerate(self._scenario.get("script", [])):
+                if i not in self._fired and frame["at_s"] <= self._elapsed:
                     self.force(**frame.get("set", {}))
+                    self._fired.add(i)
         # day-cycle drift + noise
         if self.temp_c is not None:
             self.temp_c += self._rng.uniform(-0.05, 0.05) * dt_s

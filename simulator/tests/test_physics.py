@@ -39,3 +39,24 @@ def test_servo_and_led():
     room.set_actuator("set_led", {"color": "red"})
     assert room.servo_deg == 45
     assert room.led == {"r": 255, "g": 0, "b": 0}
+
+
+def test_keyframe_fires_once_then_fan_cools():
+    room = RoomModel()
+    room.apply_scenario({"duration_s": 600, "script": [
+        {"at_s": 0, "set": {"temp_c": 35.0}}]})
+    room.tick(1)
+    assert room.temp_c >= 34.9  # keyframe applied
+    room.set_actuator("set_fan", {"on": True})
+    for _ in range(10):
+        room.tick(60)
+    assert room.temp_c < 35.0  # not pinned — actuator feedback still works
+
+
+def test_snapshot_null_when_sensor_fails():
+    room = RoomModel()
+    room.force(temp_c=None, humidity_pct=None)
+    room.tick(60)
+    snap = room.snapshot()
+    assert snap["temp_c"] is None
+    assert snap["humidity_pct"] is None
