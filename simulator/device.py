@@ -229,6 +229,9 @@ def main() -> None:
     parser.add_argument("--scenario", default=None)
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--push-port", type=int, default=8080)
+    parser.add_argument("--cycles", type=int, default=10_000_000,
+                        help="loop iterations before exit; default runs "
+                             "~69 days at speed 1 (10k was ~3 min at 60x)")
     args = parser.parse_args()
 
     dev = SimDevice(args.gateway, args.token, speed=args.speed)
@@ -237,7 +240,7 @@ def main() -> None:
             dev.room.apply_scenario(json.load(f))
     server = dev.run_push_server(args.push_port)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    asyncio.run(dev.run())
+    asyncio.run(dev.run(cycles=args.cycles))
 
 
 if __name__ == "__main__":
