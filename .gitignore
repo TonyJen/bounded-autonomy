@@ -6,3 +6,6 @@ evals/results/*
 !evals/results/.gitkeep
 config.h
 *.db
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
