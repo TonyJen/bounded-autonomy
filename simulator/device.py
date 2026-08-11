@@ -21,6 +21,14 @@ class SimDevice:
         self.room = RoomModel()
         self._seq = 0
         self._last_cmd = 0
+        self._applied_push: set[str] = set()  # cmd_ids applied via push
+
+    def _applied_push_ids(self) -> set:
+        # tests construct with __new__ (no __init__); create lazily
+        s = getattr(self, "_applied_push", None)
+        if s is None:
+            s = self._applied_push = set()
+        return s
 
     # ── payload ──────────────────────────────────────────────────────
     def _sense_payload(self, type_: str, trigger: str) -> dict:
@@ -67,7 +75,9 @@ class SimDevice:
             r.raise_for_status()
             cmds = r.json()["commands"]
             for cmd in cmds:
-                self._apply(cmd["action"], cmd["args"])
+                # skip commands already applied via push (dedupe by cmd_id)
+                if cmd["cmd_id"] not in self._applied_push_ids():
+                    self._apply(cmd["action"], cmd["args"])
                 c.post(f"{self.gateway_url}/commands/{cmd['cmd_id']}/ack",
                        json={"ok": True},
                        headers={"X-Device-Token": self.device_token})
@@ -95,7 +105,9 @@ class SimDevice:
             r.raise_for_status()
             cmds = r.json()["commands"]
             for cmd in cmds:
-                self._apply(cmd["action"], cmd["args"])
+                # skip commands already applied via push (dedupe by cmd_id)
+                if cmd["cmd_id"] not in self._applied_push_ids():
+                    self._apply(cmd["action"], cmd["args"])
                 await c.post(f"{self.gateway_url}/commands/{cmd['cmd_id']}/ack",
                              json={"ok": True},
                              headers={"X-Device-Token": self.device_token})
@@ -115,6 +127,22 @@ class SimDevice:
                 length = int(self.headers.get("Content-Length", 0))
                 body = json.loads(self.rfile.read(length) or b"{}")
                 device._apply(body.get("action", ""), body.get("args", {}))
+                cmd_id = body.get("cmd_id", "")
+                device._applied_push_ids().add(cmd_id)
+                # best-effort ack so the gateway doesn't keep serving this
+                # command to the poll path (which dedupes by cmd_id anyway)
+                try:
+                    c, owned = device._sync_client()
+                    try:
+                        c.post(
+                            f"{device.gateway_url}/commands/{cmd_id}/ack",
+                            json={"ok": True},
+                            headers={"X-Device-Token": device.device_token})
+                    finally:
+                        if owned:
+                            c.close()
+                except Exception:
+                    pass
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()

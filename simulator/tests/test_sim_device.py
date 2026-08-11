@@ -80,20 +80,40 @@ def test_push_server_applies_command(tmp_path):
 
 @pytest.mark.asyncio
 async def test_push_round_trip_gateway_to_sim(tmp_path):
-    """Regression (C1): DeviceRegistry._push must send X-Device-Token or the
-    sim push receiver 401s and the command is never applied."""
+    """Regression (C1/I1): DeviceRegistry._push must send X-Device-Token or
+    the sim push receiver 401s; and a command applied via push must not be
+    re-applied when the poll path later serves it (dedupe by cmd_id)."""
     from gateway.db import init_db as _init_db
 
     db = str(tmp_path / "t.db")
     _init_db(db)
     mem = Memory(db)
     reg = DeviceRegistry(mem, device_token="secret", push_port=18099)
+    settings = Settings(xai_api_key="", xai_base_url="", xai_model="t",
+                        device_token="secret", db_path=db)
+    app = create_app(settings, mem, reg)
+    client = TestClient(app)
+    client.__enter__()
 
     room = RoomModel()
     dev = SimDevice.__new__(SimDevice)
     dev.room = room
     dev.device_token = "secret"
-    dev.gateway_url = "http://127.0.0.1:1"  # no gateway needed for push-only
+    dev.gateway_url = "http://test"
+    dev.device_id = "sim-01"
+    dev._seq = 0
+    dev._last_cmd = 0
+    dev._client = client  # poll + push-ack go through the ASGI app
+
+    applies = []
+    orig_apply = dev._apply
+
+    def counting_apply(action, args):
+        applies.append(action)
+        orig_apply(action, args)
+
+    dev._apply = counting_apply
+
     server = dev.run_push_server(port=18099)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
@@ -102,5 +122,11 @@ async def test_push_round_trip_gateway_to_sim(tmp_path):
         # _push awaits the HTTP response, which the sim sends after applying
         assert room.servo_deg == 45
         assert mem.commands_after("sim-01", 0)[0]["status"] == "pushed"
+        # I1: the poll path still serves status='pushed' commands, but the
+        # sim must skip cmd_ids it already applied via push
+        dev.poll_commands_sync()
+        assert applies.count("set_servo") == 1
+        assert room.servo_deg == 45
     finally:
         server.shutdown()
+        client.__exit__(None, None, None)
