@@ -1,0 +1,2 @@
+{"name": "quiet_afternoon", "duration_s": 900,
+ "script": [{"at_s": 0, "set": {"temp_c": 22.0, "light": 900, "motion": false}}]}

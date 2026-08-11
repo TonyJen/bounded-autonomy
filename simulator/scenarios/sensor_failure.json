@@ -1,0 +1,2 @@
+{"name": "sensor_failure", "duration_s": 900,
+ "script": [{"at_s": 0, "set": {"temp_c": null, "humidity_pct": null}}]}
