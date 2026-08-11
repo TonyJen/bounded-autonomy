@@ -1,10 +1,12 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Optional
 
 import httpx
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from gateway.auth import make_device_auth
@@ -14,6 +16,8 @@ from gateway.events import ConnectionManager
 from gateway.memory import Memory
 
 logger = logging.getLogger(__name__)
+
+DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
 
 class SensePayload(BaseModel):
@@ -197,5 +201,9 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                 await ws.receive_text()  # discard client messages
         except WebSocketDisconnect:
             events.disconnect(ws)
+
+    if os.path.isdir(DIST_DIR):
+        app.mount("/", StaticFiles(directory=DIST_DIR, html=True),
+                  name="spa")
 
     return app

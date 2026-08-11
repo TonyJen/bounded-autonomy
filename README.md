@@ -84,6 +84,20 @@ python -m venv .venv; .venv\Scripts\pip install -r gateway\requirements.txt
 .venv\Scripts\python -m evals.runner --mode mock
 ```
 
+## Frontend (M6 dashboard)
+
+Three views — Room (live gauges), Agent (decision log), Evals (run & results) —
+all updated over WebSocket with zero polling.
+
+```powershell
+# production: build once, the gateway serves it at http://localhost:8010
+cd frontend; npm install; npm run build
+
+# development: Vite dev server at http://localhost:5173
+# (proxies /status, /history, /evals, /sim, /ws to the gateway on :8010)
+cd frontend; npm run dev
+```
+
 Then see **docs/GUIDE.md** for the full user & developer guide.
 
 ## Docs
@@ -95,5 +109,6 @@ Then see **docs/GUIDE.md** for the full user & developer guide.
 
 ## Status
 
-M1–M4 complete (gateway, simulator, agent loop, eval suite — 47 tests).
-M5–M8 remaining: cadence polish, frontend SPA, real-hardware swap-in, demo.
+M1–M6 complete (gateway, simulator, agent loop, eval suite, WS bus,
+frontend SPA — 58 tests).
+M5, M7–M8 remaining: cadence polish, real-hardware swap-in, demo.
