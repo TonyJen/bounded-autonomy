@@ -57,6 +57,15 @@ class Agent:
         self._fan_on = False
 
     def build_context(self, snapshot: dict) -> list[dict]:
+        # SPEC §4 step 2: current snapshot + actuator states + last-10
+        # decisions + time. Actuators ride in the sense payload, stored as
+        # raw_json on the snapshot row (or carried inline in tests/evals).
+        actuators = snapshot.get("actuators")
+        if actuators is None and snapshot.get("raw_json"):
+            try:
+                actuators = json.loads(snapshot["raw_json"]).get("actuators")
+            except (ValueError, TypeError):
+                actuators = None
         user = {
             "trigger": snapshot.get("trigger"),
             "sensors": {
@@ -65,8 +74,16 @@ class Agent:
                 "light": snapshot.get("light"),
                 "motion": bool(snapshot.get("motion")),
             },
+            "actuators": actuators,
             "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
+        if getattr(self, "memory", None) is not None:
+            user["recent_decisions"] = [
+                {"trigger": d.get("trigger"), "source": d.get("source"),
+                 "tools": [c.get("name") for c in
+                           json.loads(d.get("tool_calls_json") or "[]")]}
+                for d in self.memory.recent_decisions(10)
+            ]
         return [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(user)},

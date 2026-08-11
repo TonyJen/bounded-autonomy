@@ -135,3 +135,25 @@ def test_context_includes_snapshot():
     msgs = agent.build_context(SNAP)
     assert msgs[0]["role"] == "system"
     assert "35.0" in msgs[-1]["content"]
+
+
+def test_context_includes_actuators_and_recent_decisions(tmp_path):
+    """SPEC §4 step 2: context must carry actuator states and the last-10
+    decisions (compact) in addition to the sensor snapshot."""
+    import json as _json
+    agent, mem = make_agent(tmp_path, StubClient({}))
+    mem.record_decision("motion", "agent", {}, [{"name": "set_fan",
+                                                 "args": {"on": True}}],
+                        12.0, {})
+    # actuators inline (as the sim/evals payloads carry them)
+    snap = {**SNAP, "actuators": {"fan": True, "servo_deg": 45}}
+    ctx = _json.loads(agent.build_context(snap)[-1]["content"])
+    assert ctx["actuators"]["fan"] is True
+    assert ctx["actuators"]["servo_deg"] == 45
+    assert ctx["recent_decisions"][0]["source"] == "agent"
+    assert ctx["recent_decisions"][0]["tools"] == ["set_fan"]
+    # actuators via raw_json (as stored by memory.latest_snapshot)
+    raw = _json.dumps({"actuators": {"fan": False, "led": {"r": 255}}})
+    ctx2 = _json.loads(agent.build_context({**SNAP, "raw_json": raw})[-1]
+                       ["content"])
+    assert ctx2["actuators"]["led"] == {"r": 255}
