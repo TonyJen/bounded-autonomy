@@ -112,10 +112,13 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
             raise HTTPException(status_code=503, detail="device offline")
         ip = registry._seen[device_id][0]
         url = f"http://{ip}:{registry.push_port}{path}"
-        async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.post(
-                url, json=body,
-                headers={"X-Device-Token": settings.device_token})
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post(
+                    url, json=body,
+                    headers={"X-Device-Token": settings.device_token})
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="device unreachable")
         return {"ok": resp.status_code == 200, "device_status": resp.status_code}
 
     @app.post("/sim/scenario")
