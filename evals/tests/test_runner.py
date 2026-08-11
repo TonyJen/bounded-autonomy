@@ -17,6 +17,25 @@ def test_mock_mode_all_pass(tmp_path):
         assert r["score"] >= 0.8, r
 
 
+def test_results_include_correctness_and_perf(tmp_path):
+    out = run_evals(db_path=str(tmp_path / "t.db"), mode="mock",
+                    results_dir=str(tmp_path / "results"))
+    for r in out["results"]:
+        # correctness breakdown
+        assert "required_ok" in r["detail"]
+        assert "forbidden_ok" in r["detail"]
+        assert "args_ok" in r["detail"]
+        # performance info (mock client reports 1/1 tokens per cycle)
+        perf = r["perf"]
+        assert perf["latency_ms"] >= 0
+        assert perf["input_tokens"] >= 1
+        assert perf["output_tokens"] >= 1
+    summary = out["summary"]
+    assert summary["avg_latency_ms"] >= 0
+    assert summary["total_input_tokens"] >= len(out["results"])
+    assert summary["total_output_tokens"] >= len(out["results"])
+
+
 def test_run_persisted_and_diffed(tmp_path):
     db = str(tmp_path / "t.db")
     rd = str(tmp_path / "results")

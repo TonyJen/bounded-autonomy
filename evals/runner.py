@@ -47,15 +47,24 @@ def _score(case: dict, calls: list[dict]) -> tuple[float, dict]:
 async def _run_case(case: dict, agent: Agent) -> dict:
     repeat = case.get("repeat", 1)
     all_calls = []
+    total_latency = 0.0
+    in_tok = 0
+    out_tok = 0
     for _ in range(repeat):
         out = await agent.run_cycle(dict(case["context"]))
         all_calls.extend(out["tool_calls"])
+        total_latency += out.get("latency_ms", 0.0)
+        usage = out.get("usage") or {}
+        in_tok += usage.get("prompt_tokens") or 0
+        out_tok += usage.get("completion_tokens") or 0
     score, detail = _score(case, all_calls)
     if case.get("custom_check") == "buzzer_budget":
         score, detail = _apply_buzzer_budget(case, agent, all_calls,
                                              score, detail)
     return {"case_id": case["id"], "score": score, "passed": score >= 0.8,
-            "detail": detail}
+            "detail": detail,
+            "perf": {"latency_ms": round(total_latency / repeat, 1),
+                     "input_tokens": in_tok, "output_tokens": out_tok}}
 
 
 def _apply_buzzer_budget(case: dict, agent: Agent, calls: list[dict],
@@ -98,10 +107,15 @@ def run_evals(db_path: str, mode: str = "mock",
     results = [asyncio.run(_run_case(c, agent)) for c in cases]
 
     passed = sum(1 for r in results if r["passed"])
+    perfs = [r["perf"] for r in results]
     summary = {"total": len(results), "passed": passed,
                "failed": len(results) - passed,
                "average_score": round(
-                   sum(r["score"] for r in results) / max(1, len(results)), 2)}
+                   sum(r["score"] for r in results) / max(1, len(results)), 2),
+               "avg_latency_ms": round(
+                   sum(p["latency_ms"] for p in perfs) / max(1, len(perfs)), 1),
+               "total_input_tokens": sum(p["input_tokens"] for p in perfs),
+               "total_output_tokens": sum(p["output_tokens"] for p in perfs)}
     # Microsecond resolution: two runs within the same second must not
     # collide on the eval_runs.run_id UNIQUE constraint.
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

@@ -125,7 +125,9 @@ class Agent:
             self.memory.record_decision(
                 snapshot.get("trigger", "?"), "agent",
                 {"snapshot": snapshot}, calls, latency, resp.get("usage", {}))
-            return {"source": "agent", "tool_calls": calls, "results": results}
+            return {"source": "agent", "tool_calls": calls, "results": results,
+                    "latency_ms": round(latency, 1),
+                    "usage": resp.get("usage", {})}
 
         except (GrokError, KeyError, IndexError) as e:
             logger.warning("agent falling back to rules: %s", e)
@@ -140,7 +142,8 @@ class Agent:
                 snapshot.get("trigger", "?"), "fallback",
                 {"snapshot": snapshot}, calls, latency, {})
             return {"source": "fallback", "tool_calls": calls,
-                    "results": results}
+                    "results": results, "latency_ms": round(latency, 1),
+                    "usage": {}}
 
     def fallback(self, snapshot: dict) -> list[dict]:
         actions = []

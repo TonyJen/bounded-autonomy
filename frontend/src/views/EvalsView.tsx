@@ -3,7 +3,19 @@ import { api } from '../lib/api'
 import { useGatewayWS, GatewayMessage } from '../lib/ws'
 import StatCard from '../components/StatCard'
 
-type CaseResult = { case_id: string; passed: boolean; score: number }
+type CaseResult = {
+  case_id: string
+  passed: boolean
+  score: number
+  detail?: {
+    required_ok?: boolean
+    forbidden_ok?: boolean
+    args_ok?: boolean
+    called?: string[]
+    custom_check_failed?: string
+  }
+  perf?: { latency_ms: number; input_tokens: number; output_tokens: number }
+}
 
 export default function EvalsView() {
   const [running, setRunning] = useState<string | null>(null)
@@ -66,17 +78,31 @@ export default function EvalsView() {
         {summary && (
           <span className="text-ink ml-4">
             {summary.passed}/{summary.total} passed · avg {summary.average_score}
+            {summary.avg_latency_ms != null && (
+              <span className="text-muted">
+                {' '}· {(summary.avg_latency_ms / 1000).toFixed(1)}s avg ·{' '}
+                {(summary.total_input_tokens ?? 0).toLocaleString()}→
+                {(summary.total_output_tokens ?? 0).toLocaleString()} tok
+              </span>
+            )}
           </span>
         )}
       </div>
 
       {results && (
         <StatCard title="Latest run">
+          <div className="flex items-center gap-3 pb-2 text-xs text-muted">
+            <span className="w-16" />
+            <span className="flex-1">case</span>
+            <span className="w-40 text-center">correctness</span>
+            <span className="w-36 text-right">performance</span>
+            <span className="w-36 text-right">score</span>
+          </div>
           {results.map((r) => (
             <div key={r.case_id}
                  className="flex items-center gap-3 py-2 border-b
                             border-cardborder last:border-0">
-              <span className={`text-sm px-2 py-0.5 rounded-full ${
+              <span className={`text-sm px-2 py-0.5 rounded-full w-16 text-center ${
                 r.passed ? 'bg-good/20 text-good'
                          : 'bg-critical/20 text-critical'}`}>
                 {r.passed ? '✓ pass' : '✗ fail'}
@@ -84,15 +110,40 @@ export default function EvalsView() {
               <span className="text-ink flex-1 font-mono text-sm">
                 {r.case_id}
               </span>
-              <div className="w-32 bg-cardborder rounded-full h-2">
-                <div className="h-2 rounded-full bg-temp"
-                     style={{ width: `${r.score * 100}%` }} />
-              </div>
-              <span className="text-ink2 text-sm w-12 text-right">
-                {r.score.toFixed(2)}
+              <span className="w-40 flex justify-center gap-1">
+                {(['required_ok', 'forbidden_ok', 'args_ok'] as const).map((k) => (
+                  <span key={k} title={k}
+                    className={`text-xs px-1.5 py-0.5 rounded ${
+                      r.detail?.[k] === false
+                        ? 'bg-critical/20 text-critical'
+                        : 'bg-good/20 text-good'}`}>
+                    {k === 'required_ok' ? 'req' : k === 'forbidden_ok' ? 'forb' : 'args'}
+                    {r.detail?.[k] === false ? ' ✗' : ' ✓'}
+                  </span>
+                ))}
+              </span>
+              <span className="w-36 text-right text-ink2 text-xs">
+                {r.perf
+                  ? `${(r.perf.latency_ms / 1000).toFixed(1)}s · ${r.perf.input_tokens.toLocaleString()}→${r.perf.output_tokens.toLocaleString()} tok`
+                  : '—'}
+              </span>
+              <span className="w-36 flex items-center justify-end gap-2">
+                <div className="w-24 bg-cardborder rounded-full h-2">
+                  <div className="h-2 rounded-full bg-temp"
+                       style={{ width: `${r.score * 100}%` }} />
+                </div>
+                <span className="text-ink2 text-sm w-10 text-right">
+                  {r.score.toFixed(2)}
+                </span>
               </span>
             </div>
           ))}
+          {results.some((r) => r.detail?.custom_check_failed) && (
+            <div className="pt-2 text-xs text-critical">
+              {results.find((r) => r.detail?.custom_check_failed)
+                ?.detail?.custom_check_failed}
+            </div>
+          )}
         </StatCard>
       )}
 
