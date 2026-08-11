@@ -13,6 +13,7 @@ def sim_server():
     dev.room = RoomModel()
     dev.device_token = "secret"
     dev.device_id = "sim-01"
+    dev.gateway_url = "http://127.0.0.1:19999"  # unreachable; sense is best-effort
     server = dev.run_push_server(port=18101)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
@@ -48,4 +49,20 @@ def test_event_motion_injection(sim_server):
                       json={"trigger": "motion"},
                       headers={"X-Device-Token": "secret"}, timeout=5)
     assert resp.status_code == 200
+    assert sim_server.room.motion is True
+
+
+def test_event_motion_fires_immediate_sense(sim_server, monkeypatch):
+    calls = []
+
+    def fake_send(type_, trigger):
+        calls.append((type_, trigger))
+        return {}
+
+    monkeypatch.setattr(sim_server, "send_sense_sync", fake_send)
+    resp = httpx.post("http://127.0.0.1:18101/event",
+                      json={"trigger": "motion"},
+                      headers={"X-Device-Token": "secret"}, timeout=5)
+    assert resp.status_code == 200
+    assert ("event", "motion") in calls
     assert sim_server.room.motion is True

@@ -185,6 +185,13 @@ class SimDevice:
                 if trigger == "motion":
                     device.room.force(motion=True)
                     device._motion_clear_at = 5  # ticks until auto-clear
+                    # heartbeats only fire every ~300 ticks, so a manual
+                    # motion press would almost never reach the gateway —
+                    # push an immediate event sense (best-effort)
+                    try:
+                        device.send_sense_sync("event", "motion")
+                    except Exception as e:
+                        print(f"motion event sense failed: {e}")
                 elif trigger == "heat":
                     device.room.force(temp_c=35.0)
                 elif trigger == "dark":
