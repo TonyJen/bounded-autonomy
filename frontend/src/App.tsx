@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import RoomView from './views/RoomView'
 
 type Tab = 'room' | 'agent' | 'evals'
 
@@ -19,7 +20,7 @@ export default function App() {
         </nav>
       </header>
       <main className="flex-1 p-6">
-        {tab === 'room' && <div>Room view (Task 4)</div>}
+        {tab === 'room' && <RoomView />}
         {tab === 'agent' && <div>Agent view (Task 5)</div>}
         {tab === 'evals' && <div>Evals view (Task 6)</div>}
       </main>
@@ -33,6 +34,9 @@ export default function App() {
 
 function Clock() {
   const [now, setNow] = useState(new Date())
-  useState(() => { setInterval(() => setNow(new Date()), 1000) })
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
   return <span>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
 }
