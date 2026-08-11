@@ -1,0 +1,6 @@
+#define WIFI_SSID      "your-ssid"
+#define WIFI_PASSWORD  "your-password"
+#define GATEWAY_URL    "http://192.168.1.50:8000"
+#define DEVICE_TOKEN   "change-me"
+#define DEVICE_ID      "esp32-01"
+#define LIGHT_DARK_THRESHOLD 200
