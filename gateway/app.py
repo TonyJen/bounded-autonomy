@@ -102,7 +102,12 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                 out = await _asyncio.to_thread(
                     run_evals, db_path=settings.db_path, mode=req.mode,
                     case_ids=req.cases)
-                EVAL_JOBS[run_id] = {"status": "completed", "result": out}
+                # run_evals mints its own timestamp run_id; re-key the job
+                # under it so /evals/history ids resolve on the job endpoint
+                job = {"status": "completed", "result": out,
+                       "eval_run_id": out["run_id"]}
+                EVAL_JOBS[run_id] = job
+                EVAL_JOBS[out["run_id"]] = job
             except Exception as e:
                 EVAL_JOBS[run_id] = {"status": "failed", "error": str(e)}
 

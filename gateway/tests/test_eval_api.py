@@ -32,3 +32,9 @@ def test_eval_run_endpoints(tmp_path, monkeypatch):
         time.sleep(0.05)
     assert job["status"] == "completed"
     assert job["result"]["summary"]["passed"] == 5
+    # I5: the completed job must expose the eval record's run_id, and the
+    # job endpoint must also resolve under that id (history ids no 404)
+    assert job["eval_run_id"] == "r1"
+    by_eval_id = client.get("/evals/run/r1")
+    assert by_eval_id.status_code == 200
+    assert by_eval_id.json()["status"] == "completed"
