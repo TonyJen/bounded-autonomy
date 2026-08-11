@@ -8,4 +8,9 @@ settings = get_settings()
 init_db(settings.db_path)
 memory = Memory(settings.db_path)
 registry = DeviceRegistry(memory)
-app = create_app(settings, memory, registry)
+
+from gateway.agent import Agent, GrokClient
+from gateway.tools import ToolRegistry
+
+agent = Agent(memory, ToolRegistry(registry), GrokClient(settings))
+app = create_app(settings, memory, registry, on_wake=agent.run_cycle)
