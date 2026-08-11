@@ -76,3 +76,31 @@ def test_push_server_applies_command(tmp_path):
         assert room.servo_deg == 90
     finally:
         server.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_push_round_trip_gateway_to_sim(tmp_path):
+    """Regression (C1): DeviceRegistry._push must send X-Device-Token or the
+    sim push receiver 401s and the command is never applied."""
+    from gateway.db import init_db as _init_db
+
+    db = str(tmp_path / "t.db")
+    _init_db(db)
+    mem = Memory(db)
+    reg = DeviceRegistry(mem, device_token="secret", push_port=18099)
+
+    room = RoomModel()
+    dev = SimDevice.__new__(SimDevice)
+    dev.room = room
+    dev.device_token = "secret"
+    dev.gateway_url = "http://127.0.0.1:1"  # no gateway needed for push-only
+    server = dev.run_push_server(port=18099)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        reg.note_seen("sim-01", "127.0.0.1")
+        cmd_id = await reg.dispatch("sim-01", "set_servo", {"angle": 45})
+        # _push awaits the HTTP response, which the sim sends after applying
+        assert room.servo_deg == 45
+        assert mem.commands_after("sim-01", 0)[0]["status"] == "pushed"
+    finally:
+        server.shutdown()

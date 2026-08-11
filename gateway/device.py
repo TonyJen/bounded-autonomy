@@ -9,10 +9,13 @@ from gateway.memory import Memory
 
 class DeviceRegistry:
     def __init__(self, memory: Memory, push_timeout: float = 2.0,
-                 online_window_s: int = 600):
+                 online_window_s: int = 600, device_token: str = "",
+                 push_port: int = 8080):
         self.memory = memory
         self.push_timeout = push_timeout
         self.online_window_s = online_window_s
+        self.device_token = device_token
+        self.push_port = push_port
         self._seen: dict[str, tuple[str, float]] = {}  # device_id -> (ip, ts)
 
     def note_seen(self, device_id: str, ip: str) -> None:
@@ -25,10 +28,12 @@ class DeviceRegistry:
         return (time.monotonic() - entry[1]) < self.online_window_s
 
     async def _push(self, ip: str, envelope: dict) -> bool:
-        url = f"http://{ip}:8080/command"
+        url = f"http://{ip}:{self.push_port}/command"
         try:
             async with httpx.AsyncClient(timeout=self.push_timeout) as client:
-                resp = await client.post(url, json=envelope)
+                resp = await client.post(
+                    url, json=envelope,
+                    headers={"X-Device-Token": self.device_token})
                 return resp.status_code == 200
         except httpx.HTTPError:
             return False

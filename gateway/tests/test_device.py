@@ -7,7 +7,8 @@ from gateway.device import DeviceRegistry
 def make_reg(tmp_path):
     db = str(tmp_path / "t.db")
     init_db(db)
-    return DeviceRegistry(Memory(db), online_window_s=600)
+    return DeviceRegistry(Memory(db), online_window_s=600,
+                          device_token="secret")
 
 
 def test_offline_until_seen(tmp_path):
