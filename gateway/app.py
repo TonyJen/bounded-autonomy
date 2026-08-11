@@ -3,12 +3,13 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from gateway.auth import make_device_auth
 from gateway.config import Settings
 from gateway.device import DeviceRegistry
+from gateway.events import ConnectionManager
 from gateway.memory import Memory
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ class AckPayload(BaseModel):
 
 
 def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
-               on_wake=None) -> FastAPI:
+               on_wake=None,
+               events: ConnectionManager | None = None) -> FastAPI:
     app = FastAPI(title="Grok Guardian Gateway")
     auth = make_device_auth(settings.device_token)
 
@@ -47,9 +49,19 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         registry.note_seen(payload.device_id, client_ip)
 
         wake = payload.type == "heartbeat" or payload.type == "event"
+        if events is not None:
+            await events.broadcast({"type": "snapshot",
+                                    "data": payload.model_dump()})
         if wake and on_wake is not None:
-            snapshot = memory.latest_snapshot()
-            asyncio.create_task(on_wake(snapshot))
+            async def _wake_and_broadcast(snap):
+                try:
+                    result = await on_wake(snap)
+                    if events is not None and result is not None:
+                        await events.broadcast({"type": "decision",
+                                                "data": result})
+                except Exception:
+                    logger.exception("on_wake failed")
+            asyncio.create_task(_wake_and_broadcast(memory.latest_snapshot()))
         return {"accepted": True, "agent_wake": wake and on_wake is not None}
 
     @app.get("/commands", dependencies=[Depends(auth)])
@@ -65,6 +77,10 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
     async def ack(cmd_id: str, payload: AckPayload):
         memory.set_command_status(cmd_id, "acked" if payload.ok else "failed",
                                   payload.error)
+        if events is not None:
+            await events.broadcast({"type": "actuator",
+                                    "data": {"cmd_id": cmd_id,
+                                             "ok": payload.ok}})
         return {"recorded": True}
 
     @app.get("/status")
@@ -108,8 +124,16 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                        "eval_run_id": out["run_id"]}
                 EVAL_JOBS[run_id] = job
                 EVAL_JOBS[out["run_id"]] = job
+                if events is not None:
+                    await events.broadcast({"type": "eval_progress",
+                                            "data": {"run_id": run_id,
+                                                     "status": "completed"}})
             except Exception as e:
                 EVAL_JOBS[run_id] = {"status": "failed", "error": str(e)}
+                if events is not None:
+                    await events.broadcast({"type": "eval_progress",
+                                            "data": {"run_id": run_id,
+                                                     "status": "failed"}})
 
         asyncio.create_task(_job())
         return {"run_id": run_id, "status": "running"}
@@ -138,5 +162,17 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                              for r in rows]}
         finally:
             conn.close()
+
+    @app.websocket("/ws")
+    async def ws_endpoint(ws: WebSocket):
+        if events is None:
+            await ws.close(code=1008)
+            return
+        await events.connect(ws)
+        try:
+            while True:
+                await ws.receive_text()  # discard client messages
+        except WebSocketDisconnect:
+            events.disconnect(ws)
 
     return app

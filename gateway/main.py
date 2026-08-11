@@ -2,6 +2,7 @@ from gateway.app import create_app
 from gateway.config import get_settings
 from gateway.db import init_db
 from gateway.device import DeviceRegistry
+from gateway.events import ConnectionManager
 from gateway.memory import Memory
 
 settings = get_settings()
@@ -13,4 +14,5 @@ from gateway.agent import Agent, GrokClient
 from gateway.tools import ToolRegistry
 
 agent = Agent(memory, ToolRegistry(registry), GrokClient(settings))
-app = create_app(settings, memory, registry, on_wake=agent.run_cycle)
+app = create_app(settings, memory, registry, on_wake=agent.run_cycle,
+                 events=ConnectionManager())
