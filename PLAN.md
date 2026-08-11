@@ -143,14 +143,39 @@ agent behavior, with regression history.
   newly passing/failing) — same pattern as the AgentCore eval suite
 - Runner: `python -m evals.run [--mock|--live] [--cases heat_spike ...]`
 
-## 8. Cost estimate
+## 8. Frontend (`frontend/` — React 19 + Vite + Tailwind)
+
+One SPA serving both the simulator and the eval suite. Three views:
+
+1. **Room view** (simulator) — live sensor gauges (temp/humidity/light),
+   animated actuator states (fan spinning, vent servo angle, LED color,
+   buzzer, OLED text), scenario picker + speed slider, manual event
+   injectors ("trigger motion", "heat spike now")
+2. **Agent view** — the decision log: context in → tool calls out per cycle,
+   making CONTEXT → PREDICT → TOOL CALL visible in real time
+3. **Evals view** — case list with expected/forbidden tools, run buttons
+   (mock/live), results table, run history with regression diffs
+   (newly passing/failing)
+
+Transport:
+
+- WebSocket `/ws` — live pushes: simulator ticks, actuator changes, tool
+  calls, eval progress
+- REST — control: `POST /sim/scenario`, `POST /sim/event`,
+  `POST /evals/run`, `GET /evals/history`, `GET /status`
+
+Serving: gateway serves `frontend/dist` statically in production; Vite
+dev-proxy to the gateway in development. Web frontend talks only to the
+gateway — never to the device or xAI directly.
+
+## 9. Cost estimate
 
 Hybrid cadence ≈ 350 calls/day (288 heartbeats + events). At mini-tier
 pricing this is cents/day; on full `grok-4.5` keep heartbeat context small.
 Config flag switches heartbeat model independently of event model.
 Eval suite `--live` runs add ~5–20 calls per run — negligible.
 
-## 9. Build milestones
+## 10. Build milestones
 
 | Milestone | Deliverable | Effort |
 |---|---|---|
@@ -160,16 +185,17 @@ Eval suite `--live` runs add ~5–20 calls per run — negligible.
 | M3 | Grok agent loop live with function calling (against simulator) | ~3h |
 | M4 | Eval suite: mock mode + 5 scenario cases + result persistence | ~2h |
 | M5 | Hybrid cadence, guardrails, fallback rules | ~2h |
-| M6 | Hardware swap-in: real ESP-32 replaces simulator, bench verify | ~2h |
-| M7 | Demo polish: `/status` page, live eval runs, scripted demo | ~2h |
+| M6 | Frontend: room view (live sim), agent view, evals view over WS/REST | ~4h |
+| M7 | Hardware swap-in: real ESP-32 replaces simulator, bench verify | ~2h |
+| M8 | Demo polish: scripted scenarios driven from the room view | ~1h |
 
-## 10. Repo layout (planned)
+## 11. Repo layout (planned)
 
 ```
 GrokGuardian/
 ├── PLAN.md                  # ← this document
 ├── .env                     # XAI_API_KEY etc. (gitignored)
-├── firmware/                # Arduino sketch + modules (M0, M6)
+├── firmware/                # Arduino sketch + modules (M0, M7)
 │   └── grok_guardian/
 ├── gateway/                 # FastAPI app (M1–M5)
 │   ├── app.py
@@ -185,5 +211,7 @@ GrokGuardian/
 │   ├── cases.py
 │   ├── run.py
 │   └── results/
+├── frontend/                # React SPA: room/agent/evals views (M6)
+│   └── src/
 └── scripts/                 # demo_loop.py, bench tools
 ```
