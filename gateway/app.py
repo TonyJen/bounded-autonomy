@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional
 
+import httpx
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
@@ -98,6 +99,28 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
     async def history(limit: int = 10):
         return {"snapshots": memory.recent_snapshots(limit),
                 "decisions": memory.recent_decisions(limit)}
+
+    async def _forward_to_device(path: str, body: dict):
+        from fastapi import HTTPException
+        latest = memory.latest_snapshot() or {}
+        device_id = latest.get("device_id", "")
+        if not device_id or not registry.is_online(device_id):
+            raise HTTPException(status_code=503, detail="device offline")
+        ip = registry._seen[device_id][0]
+        url = f"http://{ip}:{registry.push_port}{path}"
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(
+                url, json=body,
+                headers={"X-Device-Token": settings.device_token})
+        return {"ok": resp.status_code == 200, "device_status": resp.status_code}
+
+    @app.post("/sim/scenario")
+    async def sim_scenario(payload: dict):
+        return await _forward_to_device("/scenario", payload)
+
+    @app.post("/sim/event")
+    async def sim_event(payload: dict):
+        return await _forward_to_device("/event", payload)
 
     EVAL_JOBS: dict = {}
 

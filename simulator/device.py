@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import json
+import os
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -22,6 +24,7 @@ class SimDevice:
         self._seq = 0
         self._last_cmd = 0
         self._applied_push: set[str] = set()  # cmd_ids applied via push
+        self._motion_clear_at: int | None = None  # ticks until motion auto-clear
 
     def _applied_push_ids(self) -> set:
         # tests construct with __new__ (no __init__); create lazily
@@ -120,12 +123,29 @@ class SimDevice:
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
-                if self.path != "/command":
-                    self.send_response(404); self.end_headers(); return
+                if self.path not in ("/command", "/scenario", "/event"):
+                    self._respond(404); return
                 if self.headers.get("X-Device-Token") != device.device_token:
-                    self.send_response(401); self.end_headers(); return
+                    self._respond(401); return
                 length = int(self.headers.get("Content-Length", 0))
                 body = json.loads(self.rfile.read(length) or b"{}")
+                if self.path == "/command":
+                    self._handle_command(body)
+                elif self.path == "/scenario":
+                    self._handle_scenario(body)
+                else:
+                    self._handle_event(body)
+
+            def _respond(self, status: int, payload: dict | None = None) -> None:
+                self.send_response(status)
+                if payload is not None:
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(payload).encode())
+                else:
+                    self.end_headers()
+
+            def _handle_command(self, body: dict) -> None:
                 device._apply(body.get("action", ""), body.get("args", {}))
                 cmd_id = body.get("cmd_id", "")
                 device._applied_push_ids().add(cmd_id)
@@ -143,10 +163,37 @@ class SimDevice:
                             c.close()
                 except Exception:
                     pass
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"ok": true}')
+                self._respond(200, {"ok": True})
+
+            def _handle_scenario(self, body: dict) -> None:
+                name = str(body.get("name", ""))
+                if not re.fullmatch(r"[a-z_]+", name):
+                    self._respond(400, {"ok": False,
+                                        "error": "invalid scenario name"})
+                    return
+                path = os.path.join("simulator", "scenarios", f"{name}.json")
+                if not os.path.exists(path):
+                    self._respond(404, {"ok": False,
+                                        "error": "unknown scenario"})
+                    return
+                with open(path) as f:
+                    device.room.apply_scenario(json.load(f))
+                self._respond(200, {"ok": True})
+
+            def _handle_event(self, body: dict) -> None:
+                trigger = body.get("trigger")
+                if trigger == "motion":
+                    device.room.force(motion=True)
+                    device._motion_clear_at = 5  # ticks until auto-clear
+                elif trigger == "heat":
+                    device.room.force(temp_c=35.0)
+                elif trigger == "dark":
+                    device.room.force(light=50)
+                else:
+                    self._respond(400, {"ok": False,
+                                        "error": "unknown trigger"})
+                    return
+                self._respond(200, {"ok": True})
 
             def log_message(self, *args):
                 pass  # quiet
@@ -157,6 +204,11 @@ class SimDevice:
     async def run(self, cycles: int = 10_000) -> None:
         for i in range(cycles):
             self.room.tick(1.0 * self.speed)
+            if self._motion_clear_at is not None:
+                self._motion_clear_at -= 1
+                if self._motion_clear_at <= 0:
+                    self.room.force(motion=False)
+                    self._motion_clear_at = None
             if i % max(1, int(self.heartbeat_s)) == 0:
                 await self.send_sense("heartbeat", "periodic")
             await self.poll_commands()
