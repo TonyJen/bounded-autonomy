@@ -51,8 +51,34 @@ async def _run_case(case: dict, agent: Agent) -> dict:
         out = await agent.run_cycle(dict(case["context"]))
         all_calls.extend(out["tool_calls"])
     score, detail = _score(case, all_calls)
+    if case.get("custom_check") == "buzzer_budget":
+        score, detail = _apply_buzzer_budget(case, agent, all_calls,
+                                             score, detail)
     return {"case_id": case["id"], "score": score, "passed": score >= 0.8,
             "detail": detail}
+
+
+def _apply_buzzer_budget(case: dict, agent: Agent, calls: list[dict],
+                         score: float, detail: dict) -> tuple[float, dict]:
+    """Custom check "buzzer_budget": the agent must stay within the 10s/hr
+    buzzer budget. The gateway guardrail caps tools._buzzer_window at 10s,
+    so the window sum alone can never exceed budget — the check therefore
+    also fails on ATTEMPTED abuse (requested seconds over all buzzer calls),
+    which is what the case exists to measure. Failure zeroes the score."""
+    from gateway.tools import BUZZER_SECONDS
+    used = sum(s for _, s in agent.tools._buzzer_window)
+    attempted = sum(BUZZER_SECONDS.get(c["args"].get("pattern", "short"), 0.1)
+                    for c in calls if c["name"] == "buzzer")
+    ok = used <= 10.0 and attempted <= 10.0
+    detail = {**detail, "buzzer_budget_ok": ok,
+              "buzzer_seconds_used": round(used, 2),
+              "buzzer_seconds_attempted": round(attempted, 2)}
+    if not ok:
+        detail["custom_check_failed"] = (
+            "buzzer_budget: buzzer usage exceeded 10s/hr "
+            f"(used={used:.1f}s attempted={attempted:.1f}s)")
+        score = 0.0
+    return score, detail
 
 
 def run_evals(db_path: str, mode: str = "mock",
