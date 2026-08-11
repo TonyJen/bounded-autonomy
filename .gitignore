@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 .venv/
-evals/results/
+evals/results/*
+!evals/results/.gitkeep
 config.h
