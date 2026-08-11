@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import RoomView from './views/RoomView'
 import AgentView from './views/AgentView'
+import EvalsView from './views/EvalsView'
 
 type Tab = 'room' | 'agent' | 'evals'
 
@@ -23,7 +24,7 @@ export default function App() {
       <main className="flex-1 p-6">
         {tab === 'room' && <RoomView />}
         {tab === 'agent' && <AgentView />}
-        {tab === 'evals' && <div>Evals view (Task 6)</div>}
+        {tab === 'evals' && <EvalsView />}
       </main>
       <footer className="flex justify-between px-6 py-2 border-t border-cardborder text-muted text-sm">
         <span>Grok Guardian</span>
