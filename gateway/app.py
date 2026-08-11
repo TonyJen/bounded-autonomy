@@ -83,4 +83,55 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         return {"snapshots": memory.recent_snapshots(limit),
                 "decisions": memory.recent_decisions(limit)}
 
+    EVAL_JOBS: dict = {}
+
+    class EvalRunRequest(BaseModel):
+        mode: str = "mock"
+        cases: Optional[list] = None
+
+    @app.post("/evals/run")
+    async def evals_run(req: EvalRunRequest):
+        import uuid as _uuid
+        run_id = _uuid.uuid4().hex[:12]
+        EVAL_JOBS[run_id] = {"status": "running"}
+
+        async def _job():
+            from evals.runner import run_evals
+            import asyncio as _asyncio
+            try:
+                out = await _asyncio.to_thread(
+                    run_evals, db_path=settings.db_path, mode=req.mode,
+                    case_ids=req.cases)
+                EVAL_JOBS[run_id] = {"status": "completed", "result": out}
+            except Exception as e:
+                EVAL_JOBS[run_id] = {"status": "failed", "error": str(e)}
+
+        asyncio.create_task(_job())
+        return {"run_id": run_id, "status": "running"}
+
+    @app.get("/evals/run/{run_id}")
+    async def evals_run_status(run_id: str):
+        from fastapi import HTTPException
+        job = EVAL_JOBS.get(run_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="run not found")
+        return job
+
+    @app.get("/evals/history")
+    async def evals_history(limit: int = 10):
+        import json as _json
+        from gateway.db import get_conn
+        conn = get_conn(settings.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT run_id, ts, mode, model, summary_json FROM eval_runs"
+                " ORDER BY id DESC LIMIT ?", (max(1, min(limit, 50)),)
+            ).fetchall()
+            return {"runs": [{"run_id": r["run_id"], "ts": r["ts"],
+                              "mode": r["mode"], "model": r["model"],
+                              "summary": _json.loads(r["summary_json"])}
+                             for r in rows]}
+        finally:
+            conn.close()
+
     return app
