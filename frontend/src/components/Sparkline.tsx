@@ -10,6 +10,8 @@ export default function Sparkline({ data, color, height = 40 }: {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
          className="w-full" style={{ height }}>
+      <polygon points={`${pts.join(' ')} ${w},${h} 0,${h}`}
+               fill={color} fillOpacity={0.1} stroke="none" />
       <polyline points={pts.join(' ')} fill="none" stroke={color}
                 strokeWidth="2" vectorEffect="non-scaling-stroke" />
     </svg>

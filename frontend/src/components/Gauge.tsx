@@ -6,12 +6,15 @@ type Props = {
 export default function Gauge({ label, value, min, max, unit, color }: Props) {
   const pct = value == null ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)))
   // semicircle from 180°→0°; radius 40, center (50,50)
+  // SVG y grows downward: upper semicircle = center minus sin component.
+  // Round to 3 decimals so cos(π/2)≈6e-17 doesn't leak into the path string.
   const arc = (frac: number) => {
+    const r = (n: number) => Math.round(n * 1000) / 1000
     const start = Math.PI, end = Math.PI * (1 - frac)
-    const x1 = 50 + 40 * Math.cos(start), y1 = 50 + 40 * Math.sin(start)
-    const x2 = 50 + 40 * Math.cos(end), y2 = 50 + 40 * Math.sin(end)
+    const x1 = 50 + 40 * Math.cos(start), y1 = 50 - 40 * Math.sin(start)
+    const x2 = 50 + 40 * Math.cos(end), y2 = 50 - 40 * Math.sin(end)
     const large = frac > 0.5 ? 1 : 0
-    return `M ${x1} ${y1} A 40 40 0 ${large} 1 ${x2} ${y2}`
+    return `M ${r(x1)} ${r(y1)} A 40 40 0 ${large} 1 ${r(x2)} ${r(y2)}`
   }
   return (
     <div className="flex flex-col items-center">
