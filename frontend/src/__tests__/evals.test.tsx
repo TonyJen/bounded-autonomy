@@ -25,9 +25,21 @@ vi.mock('../lib/api', () => ({
     runEvals: vi.fn(() => Promise.resolve({ run_id: 'job1' })),
     getEvalRun: vi.fn(() => Promise.resolve({
       status: 'completed', result: runResult })),
+    getEvalRecord: vi.fn(() => Promise.resolve({
+      run_id: 'r1', summary: { total: 5, passed: 4, failed: 1,
+                               average_score: 0.9, avg_latency_ms: 6400,
+                               total_input_tokens: 9000,
+                               total_output_tokens: 400 },
+      results: [{ case_id: 'sensor_nan', passed: true, score: 1.0,
+                  detail: { required_ok: true, forbidden_ok: true,
+                            args_ok: true },
+                  perf: { latency_ms: 6400, input_tokens: 1800,
+                          output_tokens: 80 } }],
+    })),
     getEvalHistory: vi.fn(() => Promise.resolve({ runs: [{
       run_id: 'r1', ts: '', mode: 'mock', model: 'mock',
-      summary: { total: 5, passed: 5, failed: 0, average_score: 1.0 } }] })),
+      summary: { total: 5, passed: 5, failed: 0, average_score: 1.0,
+                 avg_latency_ms: 6400 } }] })),
   },
 }))
 vi.mock('../lib/ws', () => ({ useGatewayWS: () => ({ connected: true }) }))
@@ -52,4 +64,15 @@ test('shows correctness breakdown and performance per case', async () => {
   // summary aggregates
   expect(screen.getByText(/1\.2s avg/)).toBeTruthy()
   expect(screen.getByText(/5,000→250 tok/)).toBeTruthy()
+})
+
+test('clicking a history row drills into that run record', async () => {
+  render(<EvalsView />)
+  // history row renders, then click it
+  const row = await screen.findByRole('button', { name: /r1/ })
+  fireEvent.click(row)
+  // the record's case + perf render, and the card shows the historical run id
+  expect(await screen.findByText(/sensor_nan/)).toBeTruthy()
+  expect(screen.getByText(/6\.4s · 1,800→80 tok/)).toBeTruthy()
+  expect(screen.getByText(/Run r1/)).toBeTruthy()
 })

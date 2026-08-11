@@ -11,6 +11,7 @@ export const api = {
     req('/evals/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }) }),
   getEvalRun: (id: string) => req(`/evals/run/${id}`),
+  getEvalRecord: (id: string) => req(`/evals/record/${id}`),
   getEvalHistory: (limit = 10) => req(`/evals/history?limit=${limit}`),
   simScenario: (name: string) =>
     req('/sim/scenario', { method: 'POST', headers: { 'Content-Type': 'application/json' },

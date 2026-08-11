@@ -22,6 +22,7 @@ export default function EvalsView() {
   const [results, setResults] = useState<CaseResult[] | null>(null)
   const [summary, setSummary] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
+  const [viewingRun, setViewingRun] = useState<string | null>(null)
 
   const refreshHistory = useCallback(() => {
     api.getEvalHistory().then((h) => setHistory(h.runs)).catch(() => {})
@@ -58,10 +59,20 @@ export default function EvalsView() {
   const run = async (mode: 'mock' | 'live') => {
     setRunning(mode)
     setResults(null)
+    setViewingRun(null)
     try {
       const { run_id } = await api.runEvals(mode)
       poll(run_id)
     } catch { setRunning(null) }
+  }
+
+  const openRun = async (runId: string, mode: string) => {
+    try {
+      const record = await api.getEvalRecord(runId)
+      setResults(record.results)
+      setSummary({ ...record.summary, mode })
+      setViewingRun(runId)
+    } catch { /* record missing for this run — leave current view */ }
   }
 
   return (
@@ -90,7 +101,9 @@ export default function EvalsView() {
       </div>
 
       {results && (
-        <StatCard title="Latest run">
+        <StatCard title={viewingRun
+          ? `Run ${viewingRun.slice(0, 15)}… (${summary?.mode ?? ''})`
+          : 'Latest run'}>
           <div className="flex items-center gap-3 pb-2 text-xs text-muted">
             <span className="w-16" />
             <span className="flex-1">case</span>
@@ -147,20 +160,28 @@ export default function EvalsView() {
         </StatCard>
       )}
 
-      <StatCard title="Run history">
+      <StatCard title="Run history (click a run to drill down)">
         {history.length === 0 &&
           <div className="text-muted">No runs yet.</div>}
         {history.map((r) => (
-          <div key={r.run_id}
-               className="flex items-center gap-3 py-2 border-b
-                          border-cardborder last:border-0 text-sm">
+          <button key={r.run_id}
+               onClick={() => openRun(r.run_id, r.mode)}
+               className={`w-full flex items-center gap-3 py-2 border-b
+                          border-cardborder last:border-0 text-sm text-left
+                          hover:bg-bg/60 rounded px-1 ${
+                            viewingRun === r.run_id ? 'bg-bg' : ''}`}>
             <code className="text-muted">{r.run_id.slice(0, 15)}</code>
             <span className="text-ink2">{r.mode}</span>
             <span className="text-ink ml-auto">
               {r.summary.passed}/{r.summary.total}
             </span>
+            {r.summary.avg_latency_ms != null && (
+              <span className="text-muted">
+                {(r.summary.avg_latency_ms / 1000).toFixed(1)}s
+              </span>
+            )}
             <span className="text-muted">{r.summary.average_score}</span>
-          </div>
+          </button>
         ))}
       </StatCard>
     </div>

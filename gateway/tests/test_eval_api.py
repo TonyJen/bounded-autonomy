@@ -38,3 +38,37 @@ def test_eval_run_endpoints(tmp_path, monkeypatch):
     by_eval_id = client.get("/evals/run/r1")
     assert by_eval_id.status_code == 200
     assert by_eval_id.json()["status"] == "completed"
+
+
+def test_eval_record_drilldown(tmp_path, monkeypatch):
+    """GET /evals/record/{run_id} serves the durable JSON artifact."""
+    import json
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+    record = {"run_id": "20260811T101523123456Z",
+              "metadata": {"mode": "mock"},
+              "summary": {"total": 5, "passed": 5},
+              "results": [{"case_id": "heat_spike", "passed": True,
+                           "score": 1.0,
+                           "detail": {"required_ok": True},
+                           "perf": {"latency_ms": 10.0, "input_tokens": 1,
+                                    "output_tokens": 1}}]}
+    (results_dir / f"run_{record['run_id']}.json").write_text(
+        json.dumps(record))
+    monkeypatch.setattr("gateway.app.EVAL_RESULTS_DIR", str(results_dir))
+
+    db = str(tmp_path / "t.db")
+    init_db(db)
+    settings = Settings(xai_api_key="", xai_base_url="", xai_model="t",
+                        device_token="secret", db_path=db)
+    mem = Memory(db)
+    client = TestClient(create_app(settings, mem, DeviceRegistry(mem)))
+
+    resp = client.get(f"/evals/record/{record['run_id']}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["results"][0]["perf"]["latency_ms"] == 10.0
+    assert body["results"][0]["detail"]["required_ok"] is True
+
+    assert client.get("/evals/record/doesnotexist").status_code == 404
+    assert client.get("/evals/record/..%2F..%2Fetc").status_code in (400, 404)

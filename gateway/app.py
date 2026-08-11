@@ -18,6 +18,7 @@ from gateway.memory import Memory
 logger = logging.getLogger(__name__)
 
 DIST_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+EVAL_RESULTS_DIR = os.getenv("EVAL_RESULTS_DIR", "evals/results")
 
 
 class SensePayload(BaseModel):
@@ -192,6 +193,22 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                              for r in rows]}
         finally:
             conn.close()
+
+    @app.get("/evals/record/{run_id}")
+    async def evals_record(run_id: str):
+        """Full stored run record (per-case correctness + performance) for
+        drill-down from the history list. Reads the durable JSON artifact,
+        so it works across restarts — unlike the in-memory job store."""
+        import json as _json
+        import re
+        from fastapi import HTTPException
+        if not re.fullmatch(r"[0-9A-Za-z]+", run_id):
+            raise HTTPException(status_code=400, detail="bad run id")
+        path = os.path.join(EVAL_RESULTS_DIR, f"run_{run_id}.json")
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="run record not found")
+        with open(path, encoding="utf-8") as f:
+            return _json.load(f)
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
