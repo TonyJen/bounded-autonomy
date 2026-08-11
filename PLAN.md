@@ -94,44 +94,96 @@ Four modules, each independently testable over serial:
 | Actuator abuse | Value clamps + rate limits in the registry (never trust the model) |
 | Key hygiene | `XAI_API_KEY` only on gateway; device↔gateway shared LAN token header |
 
-## 6. Testing
+## 6. Simulator (hardware-free testing)
 
-- **Firmware:** serial bench test per module (read each sensor, fire each actuator)
-- **Gateway:** pytest with mocked Grok client — scenario tests
-  ("motion while dark → expect `set_led` + `log_observation`"; "35°C → `set_fan`")
-- **Integration:** `scripts/demo_loop.py` injects fake snapshots, watches real
-  commands reach the device
+A software stand-in for the ESP-32, speaking the *same* HTTP contract as the
+real firmware — the gateway cannot tell the difference. Enables full-loop
+development before the kit is assembled, and CI testing forever after.
 
-## 7. Build milestones
+- `simulator/device.py` — virtual firmware: implements `POST /sense` client,
+  command polling, and push receiver exactly like the ESP-32 will
+- **Virtual physics** — sensor models with realistic behavior:
+  temperature drifts on a day/night sinusoid + noise; humidity correlates
+  inversely; light follows time-of-day; motion fires on scripted events.
+  Actuators change virtual state (fan on → temp starts falling, etc.)
+- **Scenario scripts** (`simulator/scenarios/*.json`) — named physical
+  situations: `heat_spike`, `night_intruder`, `quiet_afternoon`,
+  `sensor_failure` (DHT11 returns NaN — tests fallback paths)
+- CLI: `python -m simulator.device --scenario heat_spike --speed 60x`
+  with a live text view of actuator states (fan/servo/LED/buzzer/OLED)
 
-| Milestone | Deliverable | Effort |
-|---|---|---|
-| M0 | Kit assembled, all sensors read on OLED via serial test sketches | ~2h |
-| M1 | Firmware POSTs snapshots; gateway ingests + SQLite history | ~3h |
-| M2 | Command path: gateway → device → actuators move | ~3h |
-| M3 | Grok agent loop live with function calling | ~3h |
-| M4 | Hybrid cadence, guardrails, fallback rules | ~2h |
-| M5 | Demo polish: `/status` page, scripted demo scenarios | ~2h |
+The simulator is the default target for gateway development; hardware swaps
+in with zero gateway changes.
+
+## 7. Evaluation suite
+
+Same discipline as the AgentCore evals: canned scenarios asserting expected
+agent behavior, with regression history.
+
+- `evals/cases.py` — scenario assertions, each mapping injected sensor
+  context → required/forbidden tool calls:
+
+  | Case | Injected context | Expected | Forbidden |
+  |---|---|---|---|
+  | `heat_spike` | 35°C, occupied | `set_fan(on=true)` | — |
+  | `night_motion` | motion, dark, 02:00 | `set_led` + `log_observation` | `set_fan` |
+  | `normal_quiet` | 22°C, no motion | `log_observation` or no-op | `buzzer` |
+  | `sensor_nan` | DHT11 NaN | fallback/no actuator thrash | any fan/servo flip-flop |
+  | `buzzer_abuse` | repeated motion events | buzzer ≤ rate limit | >10s buzzer/hour |
+
+- **Two modes:**
+  - `--mock` — deterministic stub Grok (scripted responses), runs in CI,
+    validates the gateway plumbing: parsing, validation, dispatch, rate limits
+  - `--live` — real Grok API; validates actual model behavior against the
+    scenario expectations
+- **Scoring:** tool match (required present, forbidden absent) + argument
+  correctness (values in range) + guardrail compliance
+- **Persistence:** every run saved to `evals/results/run_<ts>.json` with
+  model ID + git SHA; each run diffs against the previous (score delta,
+  newly passing/failing) — same pattern as the AgentCore eval suite
+- Runner: `python -m evals.run [--mock|--live] [--cases heat_spike ...]`
 
 ## 8. Cost estimate
 
 Hybrid cadence ≈ 350 calls/day (288 heartbeats + events). At mini-tier
-pricing this is cents/day; on full `grok-4` keep heartbeat context small.
+pricing this is cents/day; on full `grok-4.5` keep heartbeat context small.
 Config flag switches heartbeat model independently of event model.
+Eval suite `--live` runs add ~5–20 calls per run — negligible.
 
-## 9. Repo layout (planned)
+## 9. Build milestones
+
+| Milestone | Deliverable | Effort |
+|---|---|---|
+| M0 | Kit assembled, all sensors read on OLED via serial test sketches | ~2h |
+| M1 | Gateway skeleton + simulator: full HTTP loop with virtual physics | ~3h |
+| M2 | Command path: gateway → simulator/real device → actuators move | ~3h |
+| M3 | Grok agent loop live with function calling (against simulator) | ~3h |
+| M4 | Eval suite: mock mode + 5 scenario cases + result persistence | ~2h |
+| M5 | Hybrid cadence, guardrails, fallback rules | ~2h |
+| M6 | Hardware swap-in: real ESP-32 replaces simulator, bench verify | ~2h |
+| M7 | Demo polish: `/status` page, live eval runs, scripted demo | ~2h |
+
+## 10. Repo layout (planned)
 
 ```
 GrokGuardian/
 ├── PLAN.md                  # ← this document
 ├── .env                     # XAI_API_KEY etc. (gitignored)
-├── firmware/                # Arduino sketch + modules (M0–M2)
+├── firmware/                # Arduino sketch + modules (M0, M6)
 │   └── grok_guardian/
-├── gateway/                 # FastAPI app (M1–M4)
+├── gateway/                 # FastAPI app (M1–M5)
 │   ├── app.py
 │   ├── agent.py
 │   ├── tools.py
 │   ├── memory.py
 │   └── tests/
+├── simulator/               # virtual ESP-32 + physics (M1)
+│   ├── device.py
+│   ├── physics.py
+│   └── scenarios/
+├── evals/                   # behavior test suite (M4)
+│   ├── cases.py
+│   ├── run.py
+│   └── results/
 └── scripts/                 # demo_loop.py, bench tools
 ```
