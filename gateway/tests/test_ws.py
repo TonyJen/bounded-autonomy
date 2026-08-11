@@ -50,3 +50,56 @@ def test_ws_receives_decision_after_wake(tmp_path):
     assert first["type"] == "snapshot"
     assert second["type"] == "decision"
     assert second["data"]["source"] == "agent"
+
+
+class _StubWS:
+    """Minimal WebSocket stand-in for ConnectionManager unit tests."""
+
+    def __init__(self, manager):
+        self._manager = manager
+        self.sent: list[str] = []
+        self.fail = False
+        self.disconnects_peer = None
+
+    async def send_text(self, text: str) -> None:
+        if self.fail:
+            raise RuntimeError("socket closed")
+        if self.disconnects_peer is not None:
+            # Simulate a concurrent disconnect mutating the client set
+            # mid-broadcast (during an await of another client's send).
+            self._manager.disconnect(self.disconnects_peer)
+        self.sent.append(text)
+
+
+@pytest.mark.asyncio
+async def test_broadcast_survives_mid_iteration_disconnect():
+    manager = ConnectionManager()
+    peer = _StubWS(manager)
+    mutator = _StubWS(manager)
+    mutator.disconnects_peer = peer
+    manager._clients.add(peer)
+    manager._clients.add(mutator)
+
+    # Must not raise RuntimeError: Set changed size during iteration.
+    await manager.broadcast({"type": "snapshot", "data": {"n": 1}})
+
+    # Both sends completed; the disconnected peer was dropped from the set.
+    assert peer.sent and mutator.sent
+    assert peer not in manager._clients
+    assert mutator in manager._clients
+
+
+@pytest.mark.asyncio
+async def test_broadcast_drops_dead_socket_and_keeps_others():
+    manager = ConnectionManager()
+    dead = _StubWS(manager)
+    dead.fail = True
+    alive = _StubWS(manager)
+    manager._clients.add(dead)
+    manager._clients.add(alive)
+
+    await manager.broadcast({"type": "snapshot", "data": {}})
+
+    assert alive.sent
+    assert dead not in manager._clients
+    assert alive in manager._clients

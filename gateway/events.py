@@ -24,7 +24,7 @@ class ConnectionManager:
             return
         text = json.dumps(message, default=str)
         dead = []
-        for ws in self._clients:
+        for ws in list(self._clients):
             try:
                 await ws.send_text(text)
             except Exception:
