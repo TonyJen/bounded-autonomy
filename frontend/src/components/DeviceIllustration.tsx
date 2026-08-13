@@ -1,5 +1,6 @@
 import { Actuators, Sensors } from '../lib/deviceState'
 import { useFanMomentum } from '../lib/useFanMomentum'
+import { tempFraction, tempColor, lightFraction, humidityFraction } from '../lib/deviceVisuals'
 
 function fmt(v: number | null, suffix = ''): string {
   return v == null ? '—' : `${v}${suffix}`
@@ -17,6 +18,9 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
   const motion = !!sensors.motion
   const deg = actuators.servo_deg
   const fanAngle = useFanMomentum(actuators.fan)
+  const tFrac = tempFraction(sensors.temp_c)
+  const lFrac = lightFraction(sensors.light)
+  const hFrac = humidityFraction(sensors.humidity_pct)
 
   return (
     <div className="flex flex-wrap items-center gap-6">
@@ -53,6 +57,16 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
         <text x="310" y="140" textAnchor="middle" fontSize="10"
               fill="var(--color-muted)">LED</text>
 
+        {/* light meter arc: dashoffset = (1 - lightFraction) * ARC_LEN */}
+        <path d="M286 96 a24 24 0 0 1 48 0"
+              fill="none" stroke="var(--color-cardborder)" strokeWidth="3"
+              strokeLinecap="round" />
+        <path data-testid="light-arc" d="M286 96 a24 24 0 0 1 48 0"
+              fill="none" stroke="var(--color-light)" strokeWidth="3"
+              strokeLinecap="round" strokeDasharray="37.7"
+              style={{ strokeDashoffset: (1 - (lFrac ?? 0)) * 37.7,
+                       transition: 'stroke-dashoffset 500ms ease-out' }} />
+
         {/* buzzer */}
         <circle cx="310" cy="180" r="12" fill="var(--color-card)"
                 stroke="var(--color-cardborder)" strokeWidth="2" />
@@ -84,19 +98,56 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
         <text x="110" y="302" textAnchor="middle" fontSize="10"
               fill="var(--color-muted)">FAN</text>
 
+        {/* thermometer: fill height = tempFraction * 60, color = tempColor */}
+        <rect x="34" y="170" width="12" height="64" rx="6"
+              fill="none" stroke="var(--color-cardborder)" strokeWidth="2" />
+        <rect data-testid="thermo-fill" x="36"
+              y={232 - (tFrac ?? 0) * 60}
+              width="8" height={(tFrac ?? 0) * 60} rx="4"
+              fill={tFrac == null ? 'none' : tempColor(tFrac)}
+              style={{ transition: 'height 500ms ease-out, y 500ms ease-out' }} />
+        <text x="40" y="250" textAnchor="middle" fontSize="10"
+              fill="var(--color-muted)">TEMP</text>
+
+        {/* humidity droplet: clipped fill = humidityFraction * 28 */}
+        <path d="M190 176 C190 176 180 190 180 198 a10 10 0 0 0 20 0 c0 -8 -10 -22 -10 -22"
+              fill="none" stroke="var(--color-cardborder)" strokeWidth="2" />
+        <clipPath id="dropclip">
+          <path d="M190 176 C190 176 180 190 180 198 a10 10 0 0 0 20 0 c0 -8 -10 -22 -10 -22" />
+        </clipPath>
+        <rect data-testid="humidity-fill" x="180"
+              y={208 - (hFrac ?? 0) * 28}
+              width="20" height={(hFrac ?? 0) * 28}
+              fill="var(--color-humidity)" opacity="0.8"
+              clipPath="url(#dropclip)"
+              style={{ transition: 'height 500ms ease-out, y 500ms ease-out' }} />
+        <text x="190" y="222" textAnchor="middle" fontSize="10"
+              fill="var(--color-muted)">RH</text>
+
         {/* servo vent louver: flap hinged at left edge, 0° closed / 90° open */}
         <rect x="230" y="222" width="112" height="56" rx="4"
               fill="none" stroke="var(--color-cardborder)" strokeWidth="2" />
         <rect data-testid="louver" x="236" y="228" width="100" height="44" rx="2"
               fill="var(--color-humidity)" opacity="0.7"
-              transform={`rotate(${-deg} 236 250)`} />
+              style={{ transform: `rotate(${-deg}deg)`,
+                       transformOrigin: '236px 250px',
+                       transformBox: 'view-box',
+                       transition: 'transform 400ms ease-out' }} />
         <text x="286" y="302" textAnchor="middle" fontSize="10"
               fill="var(--color-muted)">VENT {deg}°</text>
 
-        {/* PIR motion badge */}
+        {/* PIR motion badge + ripple */}
         <circle data-testid="motion-badge" cx="352" cy="240" r="10"
                 fill="currentColor"
                 className={motion ? 'text-warning' : 'text-cardborder'} />
+        {motion && (
+          <g data-testid="pir-ripple" stroke="currentColor" fill="none"
+             className="text-warning" strokeWidth="1.5">
+            <circle cx="352" cy="240" r="10" className="animate-pir-ripple" />
+            <circle cx="352" cy="240" r="10" className="animate-pir-ripple"
+                    style={{ animationDelay: '0.6s' }} />
+          </g>
+        )}
         <text x="352" y="262" textAnchor="middle" fontSize="10"
               fill="var(--color-muted)">PIR</text>
       </svg>

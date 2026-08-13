@@ -110,10 +110,11 @@ test('fan rotor is style-rotated by the momentum hook, not animate-spin', () => 
   expect(rotor.style.transformOrigin).toBe('center')
 })
 
-test('louver rotates to the servo angle', () => {
+test('louver transform is style-based with a transition', () => {
   renderDevice({ actuators: { ...BASE.actuators, servo_deg: 45 } })
-  expect(screen.getByTestId('louver').getAttribute('transform'))
-    .toContain('rotate(-45')
+  const louver = screen.getByTestId('louver')
+  expect(louver.style.transform).toContain('rotate(-45deg)')
+  expect(louver.style.transition).toContain('transform')
 })
 
 test('led glows its rgb color when on', () => {
@@ -133,6 +134,39 @@ test('motion badge lights when motion is detected', () => {
   renderDevice({ sensors: { ...BASE.sensors, motion: true } })
   expect(screen.getByTestId('motion-badge').getAttribute('class'))
     .toContain('text-warning')
+})
+
+test('thermometer fill height follows tempFraction', () => {
+  // 27.5°C → frac 0.5 → half of the 60px tube
+  renderDevice({ sensors: { ...BASE.sensors, temp_c: 27.5 } })
+  const fill = screen.getByTestId('thermo-fill')
+  expect(Number(fill.getAttribute('height'))).toBeCloseTo(30)
+})
+
+test('thermometer is empty when temp is null', () => {
+  renderDevice({ sensors: { ...BASE.sensors, temp_c: null } })
+  expect(Number(screen.getByTestId('thermo-fill').getAttribute('height')))
+    .toBe(0)
+})
+
+test('light arc sweep follows lightFraction', () => {
+  renderDevice({ sensors: { ...BASE.sensors, light: 4095 } })
+  const arc = screen.getByTestId('light-arc')
+  expect(Number(arc.style.strokeDashoffset)).toBeCloseTo(0)
+})
+
+test('humidity droplet fill follows humidityFraction', () => {
+  renderDevice({ sensors: { ...BASE.sensors, humidity_pct: 50 } })
+  const fill = screen.getByTestId('humidity-fill')
+  expect(Number(fill.getAttribute('height'))).toBeCloseTo(14) // 0.5 * 28px
+})
+
+test('pir ripple shows only while motion is detected', () => {
+  const { unmount } = renderDevice()
+  expect(screen.queryByTestId('pir-ripple')).toBeNull()
+  unmount()
+  renderDevice({ sensors: { ...BASE.sensors, motion: true } })
+  expect(screen.getByTestId('pir-ripple')).toBeTruthy()
 })
 
 // ── view ─────────────────────────────────────────────────────────────
