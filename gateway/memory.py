@@ -102,6 +102,18 @@ class Memory:
         finally:
             conn.close()
 
+    def get_command(self, cmd_id: str) -> dict | None:
+        conn = get_conn(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT action, args_json FROM commands WHERE cmd_id=?",
+                (cmd_id,)).fetchone()
+            if row is None:
+                return None
+            return {"action": row["action"], "args": json.loads(row["args_json"])}
+        finally:
+            conn.close()
+
     def prune_old_snapshots(self, days: int = 7) -> None:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = get_conn(self.db_path)

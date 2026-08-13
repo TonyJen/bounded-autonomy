@@ -28,6 +28,15 @@ def test_command_lifecycle(tmp_path):
     assert mem.commands_after("esp32-01", 0) == []
 
 
+def test_get_command_returns_action_and_parsed_args(tmp_path):
+    mem = make_mem(tmp_path)
+    mem.queue_command("esp32-01", "set_servo", {"angle": 45}, "cmd_9")
+    cmd = mem.get_command("cmd_9")
+    assert cmd["action"] == "set_servo"
+    assert cmd["args"] == {"angle": 45}
+    assert mem.get_command("cmd_missing") is None
+
+
 def test_recent_decisions_limit(tmp_path):
     mem = make_mem(tmp_path)
     for i in range(15):

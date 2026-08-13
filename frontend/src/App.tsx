@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import RoomView from './views/RoomView'
+import DeviceView from './views/DeviceView'
 import AgentView from './views/AgentView'
 import EvalsView from './views/EvalsView'
 
-type Tab = 'room' | 'agent' | 'evals'
+type Tab = 'room' | 'device' | 'agent' | 'evals'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('room')
@@ -13,7 +14,7 @@ export default function App() {
         <img src="/icon.svg" alt="Grok Guardian logo" className="w-8 h-8" />
         <span className="text-lg font-semibold">Grok Guardian</span>
         <nav className="flex gap-2">
-          {(['room', 'agent', 'evals'] as Tab[]).map((t) => (
+          {(['room', 'device', 'agent', 'evals'] as Tab[]).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1 rounded-md capitalize ${
                 tab === t ? 'bg-card text-ink' : 'text-ink2 hover:text-ink'}`}>
@@ -24,6 +25,7 @@ export default function App() {
       </header>
       <main className="flex-1 p-6">
         {tab === 'room' && <RoomView />}
+        {tab === 'device' && <DeviceView />}
         {tab === 'agent' && <AgentView />}
         {tab === 'evals' && <EvalsView />}
       </main>

@@ -84,19 +84,25 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         memory.set_command_status(cmd_id, "acked" if payload.ok else "failed",
                                   payload.error)
         if events is not None:
+            cmd = memory.get_command(cmd_id) or {}
             await events.broadcast({"type": "actuator",
                                     "data": {"cmd_id": cmd_id,
-                                             "ok": payload.ok}})
+                                             "ok": payload.ok,
+                                             "action": cmd.get("action"),
+                                             "args": cmd.get("args")}})
         return {"recorded": True}
 
     @app.get("/status")
     async def status():
         latest = memory.latest_snapshot() or {}
+        raw = latest.get("raw_json")
+        actuators = (json.loads(raw).get("actuators") if raw else None)
         return {
             "device": {"online": bool(latest) and registry.is_online(
                 latest.get("device_id", ""))},
             "sensors": {k: latest.get(k) for k in
                         ("temp_c", "humidity_pct", "light", "motion")},
+            "actuators": actuators,
             "last_seen": latest.get("ts"),
         }
 

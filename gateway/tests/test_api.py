@@ -55,6 +55,44 @@ def test_command_poll_and_ack(tmp_path):
                       headers=h).json()["commands"] == []
 
 
+class _RecordingEvents:
+    def __init__(self):
+        self.messages = []
+
+    async def broadcast(self, message):
+        self.messages.append(message)
+
+
+def test_ack_broadcast_includes_action_and_args(tmp_path):
+    db = str(tmp_path / "t.db")
+    init_db(db)
+    settings = Settings(xai_api_key="", xai_base_url="", xai_model="test",
+                        device_token="secret", db_path=db)
+    mem = Memory(db)
+    events = _RecordingEvents()
+    app = create_app(settings, mem, DeviceRegistry(mem), events=events)
+    client = TestClient(app)
+    mem.queue_command("esp32-01", "set_fan", {"on": True}, "cmd_b")
+    h = {"X-Device-Token": "secret"}
+    resp = client.post("/commands/cmd_b/ack", json={"ok": True}, headers=h)
+    assert resp.status_code == 200
+    actuator_msgs = [m for m in events.messages if m["type"] == "actuator"]
+    assert actuator_msgs == [
+        {"type": "actuator",
+         "data": {"cmd_id": "cmd_b", "ok": True,
+                  "action": "set_fan", "args": {"on": True}}}]
+
+
+def test_status_includes_actuators(tmp_path):
+    client, _ = make_client(tmp_path)
+    h = {"X-Device-Token": "secret"}
+    # no snapshot yet: actuators is null
+    assert client.get("/status").json()["actuators"] is None
+    client.post("/sense", json=SENSE, headers=h)
+    status = client.get("/status").json()
+    assert status["actuators"] == SENSE["actuators"]
+
+
 def test_status_and_history(tmp_path):
     client, _ = make_client(tmp_path)
     h = {"X-Device-Token": "secret"}
