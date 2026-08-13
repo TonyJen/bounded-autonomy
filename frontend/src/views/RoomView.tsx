@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useGatewayWS, GatewayMessage } from '../lib/ws'
+import { useSensorHistory } from '../lib/useSensorHistory'
 import { fmtTemp } from '../lib/format'
 import Gauge from '../components/Gauge'
 import Sparkline from '../components/Sparkline'
@@ -20,9 +21,7 @@ export default function RoomView() {
   const [sensors, setSensors] = useState<Sensors | null>(null)
   const [actuators, setActuators] = useState<any>(null)
   const [online, setOnline] = useState(false)
-  const histRef = useRef<{ t: number[]; h: number[]; l: number[] }>(
-    { t: [], h: [], l: [] })
-  const [, forceRender] = useState(0)
+  const { history, handleMessage } = useSensorHistory()
 
   const onMessage = useCallback((msg: GatewayMessage) => {
     if (msg.type === 'snapshot') {
@@ -30,15 +29,9 @@ export default function RoomView() {
       setSensors(s)
       setActuators(d.actuators)
       setOnline(true)
-      const h = histRef.current
-      if (s.temp_c != null) {
-        h.t = [...h.t.slice(-59), s.temp_c]
-        h.h = [...h.h.slice(-59), s.humidity_pct ?? 0]
-        h.l = [...h.l.slice(-59), s.light ?? 0]
-        forceRender((n) => n + 1)
-      }
+      handleMessage(msg)
     }
-  }, [])
+  }, [handleMessage])
 
   const { connected } = useGatewayWS(onMessage)
 
@@ -80,17 +73,17 @@ export default function RoomView() {
         <StatCard title="Temperature">
           <Gauge label="°C" value={sensors?.temp_c ?? null} min={0} max={40}
                  unit="°C" color="var(--color-temp)" />
-          <Sparkline data={histRef.current.t} color="var(--color-temp)" />
+          <Sparkline data={history.t} color="var(--color-temp)" />
         </StatCard>
         <StatCard title="Humidity">
           <Gauge label="%" value={sensors?.humidity_pct ?? null} min={0} max={100}
                  unit="%" color="var(--color-humidity)" />
-          <Sparkline data={histRef.current.h} color="var(--color-humidity)" />
+          <Sparkline data={history.h} color="var(--color-humidity)" />
         </StatCard>
         <StatCard title="Light">
           <Gauge label="ADC" value={sensors?.light ?? null} min={0} max={4095}
                  unit="" color="var(--color-light)" />
-          <Sparkline data={histRef.current.l} color="var(--color-light)" />
+          <Sparkline data={history.l} color="var(--color-light)" />
         </StatCard>
       </div>
 
