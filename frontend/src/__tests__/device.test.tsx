@@ -102,14 +102,12 @@ test('renders oled lines and sensor readouts', () => {
   expect(screen.getByText(/612/)).toBeTruthy()
 })
 
-test('fan rotor spins only when the fan is on', () => {
-  const { unmount } = renderDevice()
-  expect(screen.getByTestId('fan-rotor').classList.contains('animate-spin'))
-    .toBe(false)
-  unmount()
+test('fan rotor is style-rotated by the momentum hook, not animate-spin', () => {
   renderDevice({ actuators: { ...BASE.actuators, fan: true } })
-  expect(screen.getByTestId('fan-rotor').classList.contains('animate-spin'))
-    .toBe(true)
+  const rotor = screen.getByTestId('fan-rotor')
+  expect(rotor.classList.contains('animate-spin')).toBe(false)
+  expect(rotor.style.transform).toContain('rotate(')
+  expect(rotor.style.transformOrigin).toBe('center')
 })
 
 test('louver rotates to the servo angle', () => {

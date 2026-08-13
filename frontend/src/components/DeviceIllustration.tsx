@@ -1,6 +1,5 @@
 import { Actuators, Sensors } from '../lib/deviceState'
-
-const SPIN_STYLE = { transformBox: 'fill-box', transformOrigin: 'center' } as const
+import { useFanMomentum } from '../lib/useFanMomentum'
 
 function fmt(v: number | null, suffix = ''): string {
   return v == null ? '—' : `${v}${suffix}`
@@ -17,6 +16,7 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
   const ledOn = led.r > 0 || led.g > 0 || led.b > 0
   const motion = !!sensors.motion
   const deg = actuators.servo_deg
+  const fanAngle = useFanMomentum(actuators.fan)
 
   return (
     <div className="flex flex-wrap items-center gap-6">
@@ -72,7 +72,8 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
         <circle cx="110" cy="240" r="46" fill="var(--color-card)"
                 stroke="var(--color-cardborder)" strokeWidth="2" />
         <g data-testid="fan-rotor"
-           className={actuators.fan ? 'animate-spin' : ''} style={SPIN_STYLE}>
+           style={{ transform: `rotate(${fanAngle}deg)`,
+                    transformBox: 'fill-box', transformOrigin: 'center' }}>
           {[0, 90, 180, 270].map((a) => (
             <ellipse key={a} cx="110" cy="218" rx="9" ry="22"
                      fill="var(--color-temp)" opacity="0.8"
