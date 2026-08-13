@@ -93,8 +93,10 @@ async def _run_case(case: dict, agent: Agent, judge=None) -> dict:
     text_outputs = [c for c in all_calls
                     if c["name"] in ("log_observation", "display_text")]
     if judge is not None and text_outputs and case.get("client") != "broken":
+        # judge must see what the model saw — post-sanitization contexts
+        from gateway.agent import sanitize_snapshot
         verdict = await judge.judge(
-            [dict(c) for c in contexts],
+            [sanitize_snapshot(dict(c)) for c in contexts],
             [c["name"] for c in all_calls], text_outputs)
         detail["judge"] = verdict
     quality = {
