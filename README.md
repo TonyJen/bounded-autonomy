@@ -110,5 +110,5 @@ Then see **docs/GUIDE.md** for the full user & developer guide.
 ## Status
 
 M1–M6 complete (gateway, simulator, agent loop, eval suite, WS bus,
-frontend SPA — 58 tests).
+frontend SPA — 81 tests).
 M5, M7–M8 remaining: cadence polish, real-hardware swap-in, demo.

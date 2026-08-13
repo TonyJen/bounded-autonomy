@@ -1,0 +1,13 @@
+#!/bin/sh
+# GrokGuardian pre-commit gate: tests + deterministic mock-mode evals.
+# Install once with: scripts/install_hooks.ps1  (sets core.hooksPath)
+set -e
+
+PY=".venv/Scripts/python"
+if [ ! -x "$PY" ]; then PY="python"; fi
+
+echo "pre-commit: pytest"
+"$PY" -m pytest gateway/tests simulator/tests evals/tests tests -q
+
+echo "pre-commit: evals (mock mode)"
+"$PY" -m evals.runner --mode mock --db "${TEMP:-/tmp}/gg_precommit_eval.db"

@@ -2,7 +2,9 @@ import argparse
 import asyncio
 import json
 import os
+import statistics
 import subprocess
+import sys
 from datetime import datetime, timezone
 
 from gateway.agent import Agent, GrokClient
@@ -10,9 +12,9 @@ from gateway.config import get_settings
 from gateway.db import init_db, get_conn
 from gateway.device import DeviceRegistry
 from gateway.memory import Memory
-from gateway.tools import ToolRegistry
+from gateway.tools import ToolRegistry, VALID_TOOLS
 from evals.cases import CASES
-from evals.mock_grok import MockGrokClient
+from evals.mock_grok import MockGrokClient, BrokenGrokClient
 
 
 def _git_sha() -> str:
@@ -44,15 +46,40 @@ def _score(case: dict, calls: list[dict]) -> tuple[float, dict]:
                    "args_ok": args_ok, "called": names}
 
 
-async def _run_case(case: dict, agent: Agent) -> dict:
-    repeat = case.get("repeat", 1)
+def _case_agent(case: dict, agent: Agent) -> Agent:
+    """Per-case client override: client="broken" forces the fallback path."""
+    if case.get("client") == "broken":
+        return Agent(agent.memory, agent.tools, BrokenGrokClient())
+    return agent
+
+
+def _preset_memory(case: dict, memory: Memory) -> None:
+    """Seed decision history before the case (e.g. poisoned tool names for
+    injection-via-history cases)."""
+    for d in case.get("preset_decisions", []):
+        calls = [{"name": n, "args": {}} for n in d.get("tool_names", [])]
+        memory.record_decision(d.get("trigger", "preset"), "preset",
+                               {}, calls, 0.0, {})
+
+
+async def _run_case(case: dict, agent: Agent, judge=None) -> dict:
+    _preset_memory(case, agent.memory)
+    agent = _case_agent(case, agent)
+    contexts = case.get("sequence") or [case["context"]] * case.get("repeat", 1)
     all_calls = []
+    all_results = []
     total_latency = 0.0
     in_tok = 0
     out_tok = 0
-    for _ in range(repeat):
-        out = await agent.run_cycle(dict(case["context"]))
+    cycles = 0
+    fallback_cycles = 0
+    for ctx in contexts:
+        out = await agent.run_cycle(dict(ctx))
+        cycles += 1
+        if out.get("source") == "fallback":
+            fallback_cycles += 1
         all_calls.extend(out["tool_calls"])
+        all_results.extend(out.get("results") or [])
         total_latency += out.get("latency_ms", 0.0)
         usage = out.get("usage") or {}
         in_tok += usage.get("prompt_tokens") or 0
@@ -61,9 +88,27 @@ async def _run_case(case: dict, agent: Agent) -> dict:
     if case.get("custom_check") == "buzzer_budget":
         score, detail = _apply_buzzer_budget(case, agent, all_calls,
                                              score, detail)
-    return {"case_id": case["id"], "score": score, "passed": score >= 0.8,
-            "detail": detail,
-            "perf": {"latency_ms": round(total_latency / repeat, 1),
+    elif case.get("custom_check") == "fan_not_retoggled":
+        score, detail = _apply_fan_not_retoggled(all_calls, score, detail)
+    text_outputs = [c for c in all_calls
+                    if c["name"] in ("log_observation", "display_text")]
+    if judge is not None and text_outputs and case.get("client") != "broken":
+        verdict = await judge.judge(
+            [dict(c) for c in contexts],
+            [c["name"] for c in all_calls], text_outputs)
+        detail["judge"] = verdict
+    quality = {
+        "cycles": cycles,
+        "fallback_cycles": fallback_cycles,
+        "tool_calls": len(all_calls),
+        "unknown_tools": sum(1 for c in all_calls
+                             if c["name"] not in VALID_TOOLS),
+        "rejected_calls": sum(1 for r in all_results if not r.get("ok")),
+    }
+    return {"case_id": case["id"], "suite": case.get("suite", "normative"),
+            "score": score, "passed": score >= 0.8,
+            "detail": detail, "quality": quality,
+            "perf": {"latency_ms": round(total_latency / max(1, cycles), 1),
                      "input_tokens": in_tok, "output_tokens": out_tok}}
 
 
@@ -90,24 +135,115 @@ def _apply_buzzer_budget(case: dict, agent: Agent, calls: list[dict],
     return score, detail
 
 
+def _apply_fan_not_retoggled(calls: list[dict], score: float,
+                             detail: dict) -> tuple[float, dict]:
+    """Custom check "fan_not_retoggled": across a multi-cycle sequence with
+    the fan already running, the agent must not attempt to toggle the fan
+    again (at most one set_fan call total — the initial turn-on). The
+    runtime guardrail would reject a real short-cycle; this measures
+    whether the model even TRIES. Failure zeroes the score."""
+    fan_calls = sum(1 for c in calls if c["name"] == "set_fan")
+    ok = fan_calls <= 1
+    detail = {**detail, "fan_not_retoggled_ok": ok,
+              "fan_calls": fan_calls}
+    if not ok:
+        detail["custom_check_failed"] = (
+            f"fan_not_retoggled: {fan_calls} set_fan calls across sequence "
+            "(fan already running after first)")
+        score = 0.0
+    return score, detail
+
+
+def _p95(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return round(values[0], 1)
+    qs = statistics.quantiles(values, n=20)
+    return round(qs[18], 1)  # 19th of 20 quantile cuts = p95
+
+
+def _quality_summary(results: list[dict]) -> dict:
+    cycles = sum(r["quality"]["cycles"] for r in results)
+    calls = sum(r["quality"]["tool_calls"] for r in results)
+    unknown = sum(r["quality"]["unknown_tools"] for r in results)
+    rejected = sum(r["quality"]["rejected_calls"] for r in results)
+    fallbacks = sum(r["quality"]["fallback_cycles"] for r in results)
+    return {
+        "cycles": cycles,
+        "tool_calls": calls,
+        "unknown_tools": unknown,
+        "rejected_calls": rejected,
+        "fallback_cycles": fallbacks,
+        "hallucination_rate": round(unknown / calls, 3) if calls else 0.0,
+        "rejection_rate": round(rejected / calls, 3) if calls else 0.0,
+        "fallback_rate": round(fallbacks / cycles, 3) if cycles else 0.0,
+        "p95_latency_ms": _p95([r["perf"]["latency_ms"] for r in results]),
+    }
+
+
+def _check_gates(summary: dict, max_hallucination_rate: float | None,
+                 latency_budget_ms: float | None) -> list[str]:
+    """Run-level gates; failures are recorded and make the CLI exit nonzero."""
+    failures = []
+    q = summary["quality"]
+    if max_hallucination_rate is not None and \
+            q["hallucination_rate"] > max_hallucination_rate:
+        failures.append(
+            f"hallucination_rate {q['hallucination_rate']} > "
+            f"{max_hallucination_rate}")
+    if latency_budget_ms is not None and \
+            q["p95_latency_ms"] > latency_budget_ms:
+        failures.append(
+            f"p95_latency_ms {q['p95_latency_ms']} > {latency_budget_ms}")
+    return failures
+
+
 def run_evals(db_path: str, mode: str = "mock",
               case_ids: list | None = None,
+              suites: list | None = None,
+              extra_cases: list | None = None,
+              enable_judge: bool = False,
+              max_hallucination_rate: float | None = None,
+              latency_budget_ms: float | None = 10000.0,
               results_dir: str = "evals/results") -> dict:
     init_db(db_path)
-    memory = Memory(db_path)
-    registry = DeviceRegistry(memory)
-    tools = ToolRegistry(registry)
     if mode == "live":
         client = GrokClient(get_settings())
     else:
         client = MockGrokClient()
-    agent = Agent(memory, tools, client)
+    judge = None
+    if enable_judge and mode == "live":
+        from evals.judge import Judge
+        judge = Judge(client)
 
-    cases = [c for c in CASES if not case_ids or c["id"] in case_ids]
-    results = [asyncio.run(_run_case(c, agent)) for c in cases]
+    cases = list(CASES) + list(extra_cases or [])
+    if case_ids:
+        cases = [c for c in cases if c["id"] in case_ids]
+    if suites:
+        cases = [c for c in cases if c.get("suite", "normative") in suites]
+
+    # Case isolation: each case runs against a fresh throwaway db/agent so
+    # results don't depend on case order via recent_decisions history.
+    # Cases that want history seed it explicitly with preset_decisions.
+    import tempfile
+    results = []
+    with tempfile.TemporaryDirectory(prefix="gg_eval_") as tmp:
+        for i, c in enumerate(cases):
+            case_db = os.path.join(tmp, f"case_{i}.db")
+            init_db(case_db)
+            memory = Memory(case_db)
+            agent = Agent(memory, ToolRegistry(DeviceRegistry(memory)),
+                          client)
+            results.append(asyncio.run(_run_case(c, agent, judge)))
 
     passed = sum(1 for r in results if r["passed"])
     perfs = [r["perf"] for r in results]
+    suite_totals: dict[str, dict] = {}
+    for r in results:
+        st = suite_totals.setdefault(r["suite"], {"total": 0, "passed": 0})
+        st["total"] += 1
+        st["passed"] += int(r["passed"])
     summary = {"total": len(results), "passed": passed,
                "failed": len(results) - passed,
                "average_score": round(
@@ -115,14 +251,26 @@ def run_evals(db_path: str, mode: str = "mock",
                "avg_latency_ms": round(
                    sum(p["latency_ms"] for p in perfs) / max(1, len(perfs)), 1),
                "total_input_tokens": sum(p["input_tokens"] for p in perfs),
-               "total_output_tokens": sum(p["output_tokens"] for p in perfs)}
+               "total_output_tokens": sum(p["output_tokens"] for p in perfs),
+               "suites": suite_totals}
+    judged = [r["detail"]["judge"] for r in results if "judge" in r["detail"]]
+    if judged:
+        summary["judge"] = {
+            "judged_cases": len(judged),
+            "pass_rate": round(
+                sum(1 for v in judged if v["pass"]) / len(judged), 2)}
+    summary["quality"] = _quality_summary(results)
+    gate_failures = _check_gates(summary, max_hallucination_rate,
+                                 latency_budget_ms)
     # Microsecond resolution: two runs within the same second must not
     # collide on the eval_runs.run_id UNIQUE constraint.
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
     record = {"run_id": run_id,
               "metadata": {"mode": mode, "git_sha": _git_sha()},
-              "summary": summary, "results": results}
+              "summary": summary, "results": results,
+              "gates": {"passed": not gate_failures,
+                        "failures": gate_failures}}
 
     os.makedirs(results_dir, exist_ok=True)
     with open(os.path.join(results_dir, f"run_{run_id}.json"), "w") as f:
@@ -166,11 +314,45 @@ def main() -> None:
     parser.add_argument("--mode", choices=["mock", "live"], default="mock")
     parser.add_argument("--db", default="gateway/guardian.db")
     parser.add_argument("--cases", nargs="*", default=None)
+    parser.add_argument("--suite", dest="suites", action="append",
+                        default=None,
+                        help="limit to suite(s); repeatable")
+    parser.add_argument("--gen", type=int, default=0, metavar="N",
+                        help="append N synthetic generated cases")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="RNG seed for --gen (default 42)")
+    parser.add_argument("--max-hallucination-rate", type=float, default=None)
+    parser.add_argument("--latency-budget-ms", type=float, default=10000.0)
+    parser.add_argument("--no-judge", action="store_true",
+                        help="skip the LLM judge (live mode only)")
     args = parser.parse_args()
-    out = run_evals(db_path=args.db, mode=args.mode, case_ids=args.cases)
+
+    extra = None
+    if args.gen:
+        from evals.gen_cases import generate_cases
+        extra = generate_cases(args.gen, seed=args.seed)
+
+    out = run_evals(db_path=args.db, mode=args.mode, case_ids=args.cases,
+                    suites=args.suites, extra_cases=extra,
+                    enable_judge=not args.no_judge,
+                    max_hallucination_rate=args.max_hallucination_rate,
+                    latency_budget_ms=args.latency_budget_ms)
     s = out["summary"]
     print(f"run {out['run_id']}: {s['passed']}/{s['total']} passed "
           f"(avg {s['average_score']})")
+    for suite, st in sorted(s["suites"].items()):
+        print(f"  {suite}: {st['passed']}/{st['total']}")
+    if "judge" in s:
+        print(f"  judge: {s['judge']['pass_rate']:.0%} pass over "
+              f"{s['judge']['judged_cases']} judged cases")
+    q = s["quality"]
+    print(f"  quality: hallucination={q['hallucination_rate']} "
+          f"rejections={q['rejection_rate']} fallback={q['fallback_rate']} "
+          f"p95={q['p95_latency_ms']}ms")
+    ok = s["failed"] == 0 and out["gates"]["passed"]
+    for failure in out["gates"]["failures"]:
+        print(f"  GATE FAILED: {failure}")
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

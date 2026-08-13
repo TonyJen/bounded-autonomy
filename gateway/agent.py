@@ -30,9 +30,12 @@ class GrokClient:
         self.api_key = settings.xai_api_key
         self.model = settings.xai_model
 
-    async def chat(self, messages: list, tools: list) -> dict:
+    async def chat(self, messages: list, tools: list | None = None) -> dict:
         payload = {"model": self.model, "messages": messages,
-                   "tools": tools, "tool_choice": "auto", "temperature": 0.2}
+                   "temperature": 0.2}
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
@@ -45,7 +48,7 @@ class GrokClient:
             except ValueError as e:
                 raise GrokError(f"bad json: {e}") from e
         except httpx.HTTPError as e:
-            raise GrokError(str(e)) from e
+            raise GrokError(f"{type(e).__name__}: {e}") from e
 
 
 class Agent:
