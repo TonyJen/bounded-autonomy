@@ -1,6 +1,8 @@
 import { Actuators, Sensors } from '../lib/deviceState'
 import { useFanMomentum } from '../lib/useFanMomentum'
 import { tempFraction, tempColor, lightFraction, humidityFraction } from '../lib/deviceVisuals'
+import Sparkline from './Sparkline'
+import { SensorHistory } from '../lib/useSensorHistory'
 
 function fmt(v: number | null, suffix = ''): string {
   return v == null ? '—' : `${v}${suffix}`
@@ -8,10 +10,11 @@ function fmt(v: number | null, suffix = ''): string {
 
 /** SVG rendering of the simulated device: OLED, LED, buzzer, fan and
  *  servo louver on an ESP32-style board, plus sensor readouts. */
-export default function DeviceIllustration({ sensors, actuators, buzzerActive }: {
+export default function DeviceIllustration({ sensors, actuators, buzzerActive, history }: {
   sensors: Sensors
   actuators: Actuators
   buzzerActive: boolean
+  history?: SensorHistory
 }) {
   const led = actuators.led
   const ledOn = led.r > 0 || led.g > 0 || led.b > 0
@@ -166,6 +169,19 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
         <div className="text-ink2">Motion
           <div className={`text-lg font-mono ${motion ? 'text-warning' : 'text-ink'}`}>
             {sensors.motion == null ? '—' : motion ? 'detected' : 'none'}</div></div>
+        {history && (
+          <div className="pt-2 space-y-1" data-testid="spark-strip">
+            <div data-testid="spark-temp">
+              <Sparkline data={history.t} color="var(--color-temp)" height={28} />
+            </div>
+            <div data-testid="spark-humidity">
+              <Sparkline data={history.h} color="var(--color-humidity)" height={28} />
+            </div>
+            <div data-testid="spark-light">
+              <Sparkline data={history.l} color="var(--color-light)" height={28} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

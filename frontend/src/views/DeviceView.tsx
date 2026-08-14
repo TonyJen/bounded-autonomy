@@ -6,6 +6,7 @@ import {
 } from '../lib/deviceState'
 import StatCard from '../components/StatCard'
 import DeviceIllustration from '../components/DeviceIllustration'
+import { useSensorHistory } from '../lib/useSensorHistory'
 
 const SCENARIOS = [
   ['heat_spike', 'Heat spike'], ['night_intruder', 'Night intruder'],
@@ -17,9 +18,11 @@ export default function DeviceView() {
   const [state, setState] = useState(initialDeviceState)
   const [, forceRender] = useState(0)
   const buzzTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { history, handleMessage } = useSensorHistory()
 
   const onMessage = useCallback((msg: GatewayMessage) => {
     setState((s) => reduceDeviceState(s, msg))
+    handleMessage(msg)
     // re-render when the transient buzzer window expires
     if (msg.type === 'actuator' && msg.data?.ok && msg.data?.action === 'buzzer') {
       if (buzzTimer.current) clearTimeout(buzzTimer.current)
@@ -66,7 +69,7 @@ export default function DeviceView() {
       <StatCard title="Simulated device">
         <div className={live ? '' : 'opacity-60'}>
           <DeviceIllustration sensors={state.sensors} actuators={state.actuators}
-            buzzerActive={state.buzzerUntil > Date.now()} />
+            buzzerActive={state.buzzerUntil > Date.now()} history={history} />
         </div>
       </StatCard>
     </div>

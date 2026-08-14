@@ -201,3 +201,12 @@ test('device view renders illustration and sim controls', async () => {
   expect(screen.getByRole('button', { name: /heat spike/i })).toBeTruthy()
   expect(screen.getByRole('button', { name: /motion/i })).toBeTruthy()
 })
+
+test('device view feeds sensor history to the illustration sparklines', async () => {
+  render(<DeviceView />)
+  // sparkline strip renders (empty until WS snapshots arrive — the mocked
+  // useGatewayWS never delivers messages, so just the container testids)
+  expect(await screen.findByTestId('spark-temp')).toBeTruthy()
+  expect(screen.getByTestId('spark-humidity')).toBeTruthy()
+  expect(screen.getByTestId('spark-light')).toBeTruthy()
+})
