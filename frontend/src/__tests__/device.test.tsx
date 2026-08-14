@@ -155,6 +155,17 @@ test('light arc sweep follows lightFraction', () => {
   expect(Number(arc.style.strokeDashoffset)).toBeCloseTo(0)
 })
 
+test('light arc is fully empty at zero or null light', () => {
+  // semicircle r=24 has length ≈ 75.4, so offset 75.4 = nothing lit
+  const { unmount } = renderDevice({ sensors: { ...BASE.sensors, light: 0 } })
+  expect(Number(screen.getByTestId('light-arc').style.strokeDashoffset))
+    .toBeCloseTo(75.4, 0)
+  unmount()
+  renderDevice({ sensors: { ...BASE.sensors, light: null } })
+  expect(Number(screen.getByTestId('light-arc').style.strokeDashoffset))
+    .toBeCloseTo(75.4, 0)
+})
+
 test('humidity droplet fill follows humidityFraction', () => {
   renderDevice({ sensors: { ...BASE.sensors, humidity_pct: 50 } })
   const fill = screen.getByTestId('humidity-fill')

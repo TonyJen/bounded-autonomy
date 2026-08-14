@@ -63,8 +63,8 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive }:
               strokeLinecap="round" />
         <path data-testid="light-arc" d="M286 96 a24 24 0 0 1 48 0"
               fill="none" stroke="var(--color-light)" strokeWidth="3"
-              strokeLinecap="round" strokeDasharray="37.7"
-              style={{ strokeDashoffset: (1 - (lFrac ?? 0)) * 37.7,
+              strokeLinecap="round" strokeDasharray="75.4"
+              style={{ strokeDashoffset: (1 - (lFrac ?? 0)) * 75.4,
                        transition: 'stroke-dashoffset 500ms ease-out' }} />
 
         {/* buzzer */}
