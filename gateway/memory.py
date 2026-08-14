@@ -102,15 +102,30 @@ class Memory:
         finally:
             conn.close()
 
+    def mark_pushed(self, cmd_id: str) -> None:
+        """queued → pushed only. The device acks immediately on push now, so
+        the ack can land before the gateway records the push — 'pushed' must
+        never clobber 'acked'."""
+        conn = get_conn(self.db_path)
+        try:
+            conn.execute(
+                "UPDATE commands SET status='pushed' WHERE cmd_id=?"
+                " AND status='queued'", (cmd_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     def get_command(self, cmd_id: str) -> dict | None:
         conn = get_conn(self.db_path)
         try:
             row = conn.execute(
-                "SELECT action, args_json FROM commands WHERE cmd_id=?",
+                "SELECT action, args_json, status FROM commands"
+                " WHERE cmd_id=?",
                 (cmd_id,)).fetchone()
             if row is None:
                 return None
-            return {"action": row["action"], "args": json.loads(row["args_json"])}
+            return {"action": row["action"], "status": row["status"],
+                    "args": json.loads(row["args_json"])}
         finally:
             conn.close()
 

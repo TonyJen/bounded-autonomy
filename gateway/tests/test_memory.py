@@ -28,6 +28,19 @@ def test_command_lifecycle(tmp_path):
     assert mem.commands_after("esp32-01", 0) == []
 
 
+def test_mark_pushed_only_from_queued(tmp_path):
+    """Once the sim's fast push response lets the device's ack arrive before
+    the gateway marks the push complete, 'pushed' must not clobber 'acked'
+    (acked commands must stay out of the poll path)."""
+    mem = make_mem(tmp_path)
+    mem.queue_command("esp32-01", "set_fan", {"on": True}, "cmd_2")
+    mem.mark_pushed("cmd_2")
+    assert mem.get_command("cmd_2")["status"] == "pushed"
+    mem.set_command_status("cmd_2", "acked")
+    mem.mark_pushed("cmd_2")  # late duplicate push-complete → no-op
+    assert mem.get_command("cmd_2")["status"] == "acked"
+
+
 def test_get_command_returns_action_and_parsed_args(tmp_path):
     mem = make_mem(tmp_path)
     mem.queue_command("esp32-01", "set_servo", {"angle": 45}, "cmd_9")

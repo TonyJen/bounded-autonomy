@@ -137,18 +137,32 @@ class SimDevice:
                     self._handle_event(body)
 
             def _respond(self, status: int, payload: dict | None = None) -> None:
-                self.send_response(status)
-                if payload is not None:
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps(payload).encode())
-                else:
-                    self.end_headers()
+                try:
+                    self.send_response(status)
+                    if payload is not None:
+                        body = json.dumps(payload).encode()
+                        self.send_header("Content-Type", "application/json")
+                        # Content-Length lets the caller finish reading
+                        # immediately — without it the body is delimited by
+                        # connection close, which now happens after the
+                        # best-effort ack, not right after the response.
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                    else:
+                        self.end_headers()
+                except (ConnectionError, OSError):
+                    pass  # caller already hung up; nothing left to do
 
             def _handle_command(self, body: dict) -> None:
                 device._apply(body.get("action", ""), body.get("args", {}))
                 cmd_id = body.get("cmd_id", "")
                 device._applied_push_ids().add(cmd_id)
+                # Respond FIRST: the gateway's push_timeout (2s) must never
+                # race our best-effort ack callback — a slow ack used to
+                # delay this response until the gateway hung up, and the
+                # write then threw ConnectionAbortedError (WinError 10053).
+                self._respond(200, {"ok": True})
                 # best-effort ack so the gateway doesn't keep serving this
                 # command to the poll path (which dedupes by cmd_id anyway)
                 try:
@@ -163,7 +177,6 @@ class SimDevice:
                             c.close()
                 except Exception:
                     pass
-                self._respond(200, {"ok": True})
 
             def _handle_scenario(self, body: dict) -> None:
                 name = str(body.get("name", ""))

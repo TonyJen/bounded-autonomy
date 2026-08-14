@@ -51,7 +51,7 @@ class DeviceRegistry:
                 "args": args,
             }
             if await self._push(ip, envelope):
-                self.memory.set_command_status(cmd_id, "pushed")
+                self.memory.mark_pushed(cmd_id)
         return cmd_id
 
     def pending(self, device_id: str, after_id: int) -> list[dict]:
