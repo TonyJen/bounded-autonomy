@@ -3,6 +3,8 @@ import { useFanMomentum } from '../lib/useFanMomentum'
 import { tempFraction, tempColor, lightFraction, humidityFraction } from '../lib/deviceVisuals'
 import Sparkline from './Sparkline'
 import { SensorHistory } from '../lib/useSensorHistory'
+import { useTypewriter } from '../lib/useTypewriter'
+import { useChangeFlash } from '../lib/useChangeFlash'
 
 function fmt(v: number | null, suffix = ''): string {
   return v == null ? '—' : `${v}${suffix}`
@@ -24,6 +26,12 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive, h
   const tFrac = tempFraction(sensors.temp_c)
   const lFrac = lightFraction(sensors.light)
   const hFrac = humidityFraction(sensors.humidity_pct)
+  const oled1 = useTypewriter(actuators.oled[0])
+  const oled2 = useTypewriter(actuators.oled[1])
+  const flashT = useChangeFlash(sensors.temp_c)
+  const flashH = useChangeFlash(sensors.humidity_pct)
+  const flashL = useChangeFlash(sensors.light)
+  const flashM = useChangeFlash(sensors.motion)
 
   return (
     <div className="flex flex-wrap items-center gap-6">
@@ -41,16 +49,26 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive, h
               fill="var(--color-muted)">GrokGuardian · sim-01</text>
 
         {/* OLED */}
-        <rect x="50" y="84" width="170" height="66" rx="4" fill="#0B0B18"
-              stroke="var(--color-cardborder)" strokeWidth="2" />
-        <text data-testid="oled-line1" x="60" y="112" fontSize="15"
-              fontFamily="monospace" fill="#9FD8FF">{actuators.oled[0]}</text>
-        <text data-testid="oled-line2" x="60" y="136" fontSize="15"
-              fontFamily="monospace" fill="#9FD8FF">{actuators.oled[1]}</text>
+        <g key={actuators.oled.join('|')} className="animate-oled-flicker">
+          <rect x="50" y="84" width="170" height="66" rx="4" fill="#0B0B18"
+                stroke="var(--color-cardborder)" strokeWidth="2" />
+          <pattern id="scanlines" width="4" height="3"
+                   patternUnits="userSpaceOnUse">
+            <rect width="4" height="1" fill="#FFFFFF" opacity="0.05" />
+          </pattern>
+          <rect x="50" y="84" width="170" height="66" rx="4" fill="url(#scanlines)" />
+          <rect x="50" y="84" width="170" height="66" rx="4" fill="none"
+                style={{ filter: 'drop-shadow(0 0 6px rgba(159,216,255,0.35))' }} />
+          <text data-testid="oled-line1" x="60" y="112" fontSize="15"
+                fontFamily="monospace" fill="#9FD8FF">{oled1}</text>
+          <text data-testid="oled-line2" x="60" y="136" fontSize="15"
+                fontFamily="monospace" fill="#9FD8FF">{oled2}</text>
+        </g>
 
         {/* RGB LED */}
         {ledOn && (
-          <circle cx="310" cy="110" r="20" opacity="0.25"
+          <circle cx="310" cy="110" r="20"
+                  className="animate-ledbreath"
                   fill={`rgb(${led.r},${led.g},${led.b})`} />
         )}
         <circle data-testid="led" cx="310" cy="110" r="10"
@@ -158,16 +176,16 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive, h
       {/* sensor readouts */}
       <div className="space-y-2 text-sm min-w-36">
         <div className="text-ink2">Temperature
-          <div className="text-ink text-lg font-mono">
+          <div className={`text-ink text-lg font-mono ${flashT}`}>
             {fmt(sensors.temp_c, ' °C')}</div></div>
         <div className="text-ink2">Humidity
-          <div className="text-ink text-lg font-mono">
+          <div className={`text-ink text-lg font-mono ${flashH}`}>
             {fmt(sensors.humidity_pct, ' %')}</div></div>
         <div className="text-ink2">Light
-          <div className="text-ink text-lg font-mono">
+          <div className={`text-ink text-lg font-mono ${flashL}`}>
             {fmt(sensors.light)}</div></div>
         <div className="text-ink2">Motion
-          <div className={`text-lg font-mono ${motion ? 'text-warning' : 'text-ink'}`}>
+          <div className={`text-lg font-mono ${motion ? 'text-warning' : 'text-ink'} ${flashM}`}>
             {sensors.motion == null ? '—' : motion ? 'detected' : 'none'}</div></div>
         {history && (
           <div className="pt-2 space-y-1" data-testid="spark-strip">
