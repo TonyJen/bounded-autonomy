@@ -61,17 +61,17 @@ export default function RoomView() {
       {/* gauges row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard title="Temperature">
-          <Gauge label="°C" value={sensors?.temp_c ?? null} min={0} max={40}
+          <Gauge label="0–40 scale" value={sensors?.temp_c ?? null} min={0} max={40}
                  unit="°C" color="var(--color-temp)" />
           <Sparkline data={history.t} color="var(--color-temp)" />
         </StatCard>
         <StatCard title="Humidity">
-          <Gauge label="%" value={sensors?.humidity_pct ?? null} min={0} max={100}
+          <Gauge label="0–100 scale" value={sensors?.humidity_pct ?? null} min={0} max={100}
                  unit="%" color="var(--color-humidity)" />
           <Sparkline data={history.h} color="var(--color-humidity)" />
         </StatCard>
         <StatCard title="Light">
-          <Gauge label="ADC" value={sensors?.light ?? null} min={0} max={4095}
+          <Gauge label="0–4095 ADC" value={sensors?.light ?? null} min={0} max={4095}
                  unit="" color="var(--color-light)" />
           <Sparkline data={history.l} color="var(--color-light)" />
         </StatCard>
