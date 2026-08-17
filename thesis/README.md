@@ -18,6 +18,8 @@ Appendices:
 
 - [A — API reference](appendices/a-api-reference.md)
 - [B — Guardrail specification and enforcement](appendices/b-guardrails.md)
+- [C — The nineteen cases, annotated](appendices/c-cases.md)
+- [D — Glossary](appendices/d-glossary.md)
 
 ## The defense
 
@@ -34,3 +36,22 @@ Every number in this thesis is drawn from the repository it describes: the
 the eval-run JSONs in `evals/results/`, the guardrail table in
 `docs/SPEC.md` §5, and the git history. Where results are pending (real
 hardware, live-model eval campaigns), the text says so explicitly.
+
+## Chapter map
+
+| Chapter | Words | One-line summary |
+|---|---:|---|
+| 00 Front matter | ~950 | Technical + lay abstracts; the claim in one page |
+| 01 Introduction | ~1,900 | Two loops, the iff statement, a worked example at 35 °C |
+| 02 Background | ~2,500 | Agents, injection, control engineering, evaluation — and the gap between them |
+| 03 Design | ~3,400 | Three tiers, the sanitization boundary, four guardrails, the fallback, the protocol, the threat model |
+| 04 Implementation | ~3,000 | Four components, seven days, 64 commits, 88 tests at three altitudes |
+| 05 Evaluation | ~3,000 | 19/19 across four suites, per-case narrative, gates as contracts, honest threats |
+| 06 Conclusion | ~1,300 | Findings, lessons, future work, and what the week actually looked like |
+| 07 Bibliography | ~550 | Eleven annotated references plus the primary source: this repo |
+| Appendices A–D | ~2,800 | API, guardrail enforcement, the nineteen cases, glossary |
+| Defense | ~4,900 | 18 timed slides, five demo beats, eighteen committee Q&As |
+
+Word counts are approximate and counted by whitespace split, including
+tables and code — a Princeton-style ~25,000-word document where roughly
+every claim carries a receipt.
