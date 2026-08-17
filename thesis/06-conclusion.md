@@ -18,17 +18,19 @@ absent, and is deliberately narrower than the model so that failure moves
 toward silence. The evaluation harness proves all of it on every commit:
 19/19 behavior cases across normative, boundary, adversarial, and
 fallback suites; zero hallucinated tool calls in 32 dispatches; zero
-guardrail violations; 88 tests underneath; and a commit gate that
+guardrail violations; 96 tests underneath; and a commit gate that
 re-runs everything dozens of times a day.
 
 Three findings stand out beyond the headline numbers:
 
 **The boundary did the work, not the prompt.** The most security-relevant
-artifact in the system is four lines of type coercion; the least
+artifact in the system is the sanitization boundary; the least
 security-relevant is the system prompt's injunction against injection.
-Every adversarial case would pass with the prompt's safety sentences
-deleted, and none would pass with the sanitization removed. This is the
-empirical core of the "only if" direction.
+This is measured, not asserted (§5.7): against a deliberately
+compromised model that obeys any injection it can see, the adversarial
+suite passes 3/3 with the prompt's safety sentences deleted, passes 3/3
+unablated — and fails 0/3 with the boundary removed. That ablation is
+the empirical core of the "only if" direction.
 
 **Safety and observability are the same investment.** Every mechanism
 built for safety — recorded decisions, structured rejections, explicit
@@ -68,8 +70,9 @@ one of the findings.
    the model — it never sirens — makes degradation quiet. The right
    failure shape for a physical system is boring.
 5. **Sanitization is a security boundary.** Defining malformed input as
-   sensor failure killed an entire attack class with four lines of code.
-   Type systems are underused as security mechanisms.
+   sensor failure killed an entire attack class with four lines of code —
+   and closing the motion, trigger, and history channels around it cost
+   only a few more. Type systems are underused as security mechanisms.
 6. **Write the guardrails before the prompt.** The system prompt ended up
    almost trivial because the constraints had already done the designing:
    once the budgets existed in code, the prompt only had to describe a

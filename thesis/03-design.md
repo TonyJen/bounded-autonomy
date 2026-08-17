@@ -108,13 +108,17 @@ Walking the cycle through the code (`gateway/agent.py`, `run_cycle`):
    (unparseable arguments degrade to `{}` rather than crashing the cycle)
    and handed to the guardrail layer one at a time; failures become
    per-call error results, never cycle aborts.
-5. **Record.** Trigger, source (`agent` or `fallback`), full context,
-   calls, results, latency in milliseconds, and token usage are persisted
-   to SQLite.
+5. **Record.** Trigger, source (`agent` or `fallback`), the sanitized
+   snapshot, the requested calls, latency in milliseconds, and token
+   usage are persisted to SQLite. Per-call guardrail *results* are
+   returned to the caller and broadcast on `/ws`, but are not persisted —
+   the durable record is what was decided; the live record is how each
+   call fared.
 
 Step 5 is what turns a control loop into an *evaluable* control loop:
 every decision the system has ever made is replayable from
-`gateway/guardian.db`, and the `/history` endpoint and dashboard's Agent
+`gateway/guardian.db` (the stored context carries the sanitized
+snapshot), and the `/history` endpoint and dashboard's Agent
 view are thin projections of that table.
 
 ### 3.2.1 Context engineering: what the model is told, and why
@@ -138,7 +142,9 @@ earns its place:
   (quiet hours) without hardcoding a schedule.
 - **`recent_decisions`** — the ten most recent decisions, but *trigger,
   source, and tool names only*: never arguments, rationales, or free
-  text. This is memory deliberately lobotomized against injection — the
+  text, and with names filtered against the valid tool vocabulary before
+  inclusion — a poisoned record's prose name is simply dropped. This is
+  memory deliberately lobotomized against injection — the
   model can notice "I have logged three identical observations" without
   history becoming a channel for poisoned prose (§3.7, last row).
 
@@ -149,8 +155,9 @@ rules exist, not handed a spec to creatively interpret).
 
 ## 3.3 The sanitization boundary
 
-Before the model or the fallback rules see a snapshot, `sanitize_snapshot`
-applies a simple, total rule to every sensor field:
+Before the model or the fallback rules see a snapshot,
+`sanitize_snapshot` coerces every untrusted field to its safe domain.
+The numeric fields follow a simple, total rule:
 
 ```python
 def _numeric(value):
@@ -175,6 +182,24 @@ Two subtleties in the four lines: `bool` is excluded explicitly (Python's
 hot room), and the coercion is *total* — every field, every cycle, with
 no fast path for trusted devices, because a trusted device is what an
 attacker becomes after compromising one.
+
+The two non-numeric fields get the same treatment in their own domains:
+
+- **`motion`** must be a real boolean (or the 0/1 the firmware actually
+  sends); anything else becomes `null`. This field is the one that
+  *arms* a guardrail — a truthy string would otherwise stamp
+  `motion_ts` and satisfy the siren's physical precondition — so its
+  coercion is a security property, not a hygiene one.
+- **`trigger`** must match the device's small vocabulary (`motion`,
+  `periodic`, `temp_threshold`, …); anything else is replaced by the
+  literal string `invalid`. Metadata prose never reaches the model.
+
+A third closure happens at context-assembly time rather than on the
+snapshot: replayed decision history contributes tool *names* only, and
+only names present in the valid tool vocabulary (`VALID_TOOLS`) survive
+the filter. Sensor channel, metadata channel, history channel: all
+three are narrowed at the boundary, in code, before the model is
+consulted.
 
 ### 3.3.1 The system prompt as a document
 
@@ -244,11 +269,13 @@ order: does the rolling hour already contain ten seconds of buzzer time?
 (Say no.) Is there a `motion_ts` within sixty seconds? (Yes — 30 seconds
 ago.) The call dispatches; three seconds are appended to the window. Now
 the model — or an injector impersonating one — calls `siren` again. And
-again. The first repeat dispatches (six seconds used); the second hits
-the window arithmetic, finds six plus three exceeding ten, and returns
-`buzzer hourly budget (10s) exceeded` — a structured, logged rejection
-that lands in the rejection-rate metric and in the dashboard. A fourth
-siren attempt, and a fifth, meet the same wall. If the model then tries
+again. The first repeat dispatches (six seconds used); the second repeat
+dispatches too (nine seconds — the budget is ten). Only the *fourth*
+siren hits the window arithmetic, finds nine plus three exceeding ten,
+and returns `buzzer hourly budget (10s) exceeded` — a structured, logged
+rejection that lands in the rejection-rate metric and in the dashboard.
+Further attempts meet the same wall until the oldest seconds age out of
+the rolling hour. If the model then tries
 to route around the rejection with a flurry of `set_led` strobes, the
 cycle-width counter reaches six and the cycle itself raises
 `GuardrailError`.
@@ -296,11 +323,13 @@ gateway therefore supports two delivery modes over one durable queue
 (`gateway/device.py`, `DeviceRegistry`):
 
 - **Push.** When a device is seen, its IP is recorded
-  (`note_seen`); `dispatch` first attempts `POST /command` to the
-  device with a two-second timeout. The simulator implements this
+  (`note_seen`); while the device is online, `dispatch` first attempts
+  `POST /command` to the device with a two-second timeout, falling back
+  to the durable queue when the device is unreachable or stale.
+  The simulator implements this
   receiver with a stdlib HTTP server.
 - **Poll.** Devices `GET /commands` (long-poll friendly, cursor-based via
-  `after_id`) and explicitly `POST /commands/{cmd_id}/ack`. Commands are
+  `after`) and explicitly `POST /commands/{cmd_id}/ack`. Commands are
   durable in SQLite until acked.
 
 Three properties make this safe rather than merely convenient:
@@ -322,16 +351,16 @@ Three properties make this safe rather than merely convenient:
 The queue is a SQLite table, not a broker, and its semantics are worth
 stating precisely because correctness lives in the details:
 
-- **Cursor-based polling.** `GET /commands?after_id=N` returns commands
+- **Cursor-based polling.** `GET /commands?after=N` returns commands
   with ID greater than N. A device that polls with its last-seen cursor
   receives exactly the commands it has not seen — no server-side
   per-device read pointers to corrupt, and reconnects are trivially
   resumable.
-- **Explicit status transitions.** A command is `pending` at dispatch,
-  `pushed` after a successful push attempt, and `acked` (or failed with
-  an error string) only when the device says so. Push is an optimization,
-  not a state: a pushed-but-unacked command still appears to polls, which
-  is why the dedupe of property 1 exists.
+- **Explicit status transitions.** A command is `queued` at dispatch,
+  `pushed` after a successful push attempt, and `acked` (or `failed`
+  with an error string) only when the device says so. Push is an
+  optimization, not a state: a pushed-but-unacked command still appears
+  to polls, which is why the dedupe of property 1 exists.
 - **Acks carry failure.** `POST /commands/{id}/ack` accepts
   `{"ok": false, "error": …}` — an actuator that cannot comply says
   so, and the failure lands in the same history table as everything else.
@@ -353,7 +382,7 @@ wrongness cheap, bounded, and visible.
 |---|---|
 | Model hallucinates a tool | schema validation; unknown-name rejections counted as the hallucination-rate metric |
 | Prompt injection via sensor values | type coercion to null (§3.3); system-prompt instruction; adversarial suite |
-| Prompt injection via trigger strings / history | guardrails indifferent to context content; siren's physical precondition; adversarial suite |
+| Prompt injection via trigger strings / history | trigger vocabulary validation; history name filtering (§3.3); guardrails indifferent to context content; siren's physical precondition; adversarial suite |
 | Model unavailable / slow | 30 s client timeout → rule-based fallback; fallback-rate metric |
 | Rogue or spoofed device | `X-Device-Token` shared secret on device-facing routes; gateway is the sole cloud egress |
 | Runaway or looping decisions | five-call cycle cap; fan/buzzer rate limits |
@@ -364,8 +393,10 @@ wrongness cheap, bounded, and visible.
 
 The last row deserves a sentence of its own: the context's
 `recent_decisions` field deliberately carries only trigger, source, and
-tool names — not arguments, rationales, or free text — so that history
-cannot become an injection channel of its own. Memory is a liability as
+tool names — not arguments, rationales, or free text — and the names are
+filtered against the valid tool vocabulary before inclusion, so a
+poisoned record's prose is dropped at the boundary rather than replayed
+into the prompt. Memory is a liability as
 well as an asset, and the design admits the model exactly the memory it
 can be trusted with.
 
@@ -414,9 +445,10 @@ testable (evals point at a temp database), swappable (model identity is a
 string), and demoable (a fresh checkout runs with defaults except the one
 required key).
 
-Auditability completes the loop: snapshots, decisions with tool calls and
-per-call results, commands with status transitions, and eval runs all
-live in one SQLite file with a seven-day snapshot pruning policy. The
+Auditability completes the loop: snapshots, decisions with their tool
+calls, commands with status transitions, and eval runs all live in one
+SQLite file, with snapshots pruned past seven days at gateway startup
+(SPEC §7) so a long-lived appliance does not fill its own disk. The
 design goal was that *any question a committee member asks about system
 behavior should be answerable from one file* — and the defense runbook
 (thesis/defense/) exploits exactly that.

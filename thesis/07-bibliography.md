@@ -51,6 +51,13 @@ A Cyber-Physical Systems Approach*, 2nd ed. MIT Press, 2017.
 design borrows its failure shapes from. Chapters on concurrency and
 interfacing informed the push/poll protocol's at-least-once semantics.
 
+[13] L. Sha. "Using Simplicity to Control Complexity." *IEEE Software*,
+vol. 18, no. 4, pp. 20–28, 2001.
+— The Simplex architecture: a complex, high-performance controller paired
+with a simple, verified safety controller under a switching rule. The
+formal ancestor of this thesis's model-plus-fallback pairing (§2.3),
+with the guardrail layer cast as the switching logic.
+
 ## Evaluation methodology
 
 [9] A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe,

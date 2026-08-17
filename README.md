@@ -147,6 +147,11 @@ tool calls — no hardware needed.
 .venv\Scripts\python -m evals.runner --mode live --gen 50 --seed 42
 .venv\Scripts\python -m evals.runner --mode live --max-hallucination-rate 0.02 --latency-budget-ms 10000
 
+# ablation campaign: a hostile (compromised-model) client + layer switches
+.venv\Scripts\python -m evals.runner --mode mock --adversary hostile                    # 19/19
+.venv\Scripts\python -m evals.runner --mode mock --adversary hostile --ablate prompt    # 19/19
+.venv\Scripts\python -m evals.runner --mode mock --adversary hostile --ablate sanitize  # 16/19 — boundary is load-bearing
+
 # judge calibration (live; needs human labels reviewed first)
 .venv\Scripts\python -m evals.judge --calibrate
 ```
@@ -196,6 +201,6 @@ You can also trigger runs from the dashboard's **Evals** view or the API
 ## Status
 
 M1–M6 complete: gateway, simulator, agent loop, eval suite, WS bus,
-frontend SPA — **88 tests passing**
+frontend SPA — **96 tests passing**
 (`pytest gateway/tests simulator/tests evals/tests tests -q`).
 M7–M8 remaining: real-hardware swap-in, demo polish.

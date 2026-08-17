@@ -64,9 +64,14 @@ agent path and scored on required tools present, forbidden tools absent,
 and argument validity. In deterministic mock mode the agent passes 19/19
 cases with an average score of 1.000, zero hallucinated tool calls in 32
 dispatched calls, zero guardrail violations, and a p95 cycle latency of
-9.4 ms against a ten-second budget; 88 unit and integration tests guard
+9.4 ms against a ten-second budget; 96 unit and integration tests guard
 the plumbing, and a pre-commit gate re-proves both suites on every
-commit. A live-mode campaign against the production model, with enforced
+commit. An ablation campaign then measures which layer carries the
+safety case: against a deliberately compromised model that obeys any
+injection it can see, the adversarial suite still passes with the
+prompt's safety sentences deleted — and fails wholesale with the
+sanitization boundary removed. A live-mode campaign against the
+production model, with enforced
 quality gates and an LLM judge calibrated against human labels, is staged
 and reported as future work rather than borrowed as a result.
 

@@ -1,28 +1,26 @@
 # Chapter 4 — Implementation
 
-The design of Chapter 3 is realized in roughly five thousand lines of
-code across four components, built milestone-first over 64 commits in
-seven days (2026-08-10 → 2026-08-17). This chapter walks each component
-(§4.1–§4.5) and then the engineering process that made the safety claims
-credible (§4.6).
+The design of Chapter 3 is realized in roughly five and a half thousand
+lines of code across four components, built milestone-first over 68
+commits in seven days (2026-08-10 → 2026-08-16). This chapter walks each
+component (§4.1–§4.5) and then the engineering process that made the
+safety claims credible (§4.6).
 
 ## 4.1 Components at a glance
 
 | Component | Language / stack | Lines of code* | Role |
 |---|---|---:|---|
-| `gateway/` | Python 3.12+, FastAPI, Pydantic v2, SQLite, httpx | 1,642 | agent loop, guardrails, memory, API, WS bus |
+| `gateway/` | Python 3.12+, FastAPI, Pydantic v2, SQLite, httpx | 1,787 | agent loop, guardrails, memory, API, WS bus |
 | `simulator/` | Python (stdlib HTTP server + physics model) | 696 | virtual ESP-32 with scripted scenarios |
-| `evals/` | Python, custom runner + judge | 1,186 | behavior suites, scoring, gates, calibration |
-| `frontend/` | React 18 + TypeScript + Vite | 1,657 | Room / Device / Agent / Evals views |
+| `evals/` + `tests/` | Python, custom runner + judge | 1,345 | behavior suites, scoring, gates, calibration |
+| `frontend/` | React 19 + TypeScript + Vite | 1,716 | Room / Device / Agent / Evals views |
 | `firmware/` | Arduino (ESP-32) | stub (`config.h.example`) | M7 hardware swap-in |
 
-\* Application code excluding tests and generated assets; counted
-2026-08-17. Test code adds roughly another thousand lines across the four
-test suites.
-
-The size distribution is itself an argument: the *trusted* core —
-gateway minus API plumbing — is small enough to audit, and the guardrail
-module in particular is 112 lines including schemas.
+\* Application and test code together, counted 2026-08-17; of the ~5,550
+total lines, ~2,150 are tests. The size distribution is itself an
+argument: the *trusted* core — gateway minus API plumbing — is small
+enough to audit, and the guardrail module in particular is 112 lines
+including schemas.
 
 ## 4.2 Gateway
 
@@ -30,12 +28,12 @@ The gateway is a single FastAPI application assembled by `create_app` in
 `gateway/app.py` (exposed as `gateway.main:app` for uvicorn). Its modules
 are deliberately small and individually testable:
 
-- **`agent.py`** (187 lines) — the cycle of §3.2: sanitize the snapshot,
+- **`agent.py`** (247 lines) — the cycle of §3.2: sanitize the snapshot,
   build the two-message context, call the model, decode and execute tool
   calls, record the decision; on `GrokError`, run the rule-based fallback
   through the same execution path. Also home to `GrokClient`, a
-  forty-line httpx wrapper that fixes `temperature: 0.2`, a 30-second
-  timeout, and treats any non-200 or non-JSON response as a
+  twenty-five-line httpx wrapper that fixes `temperature: 0.2`, a
+  30-second timeout, and treats any non-200 or non-JSON response as a
   fallback-triggering error.
 - **`tools.py`** (112 lines) — the tool schemas exposed to the model
   (`set_fan`, `set_led`, `set_servo`, `buzzer`, `display_text`,
@@ -47,14 +45,15 @@ are deliberately small and individually testable:
 - **`memory.py`** (139 lines) + **`db.py`** (61 lines) — five SQLite
   tables (`snapshots`, `decisions`, `commands`, `eval_runs`,
   `eval_results`) behind a small query layer, including
-  `prune_old_snapshots(days=7)` so the appliance does not fill its own
-  disk.
+  `prune_old_snapshots(days=7)`, which runs at gateway startup
+  (SPEC §7) so the appliance does not fill its own disk.
 - **`events.py`** (33 lines) — a `ConnectionManager` broadcasting every
   snapshot, decision, and eval event to WebSocket clients at `/ws`.
 - **`auth.py`** (8 lines) — a FastAPI dependency enforcing the
   `X-Device-Token` header on device-facing routes.
 - **`config.py`** (28 lines) — environment-driven settings; the only
-  module that reads `.env`, so secret handling has exactly one home.
+  module that reads *secrets* from the environment, so secret handling
+  has exactly one home.
 
 The API surface (`/sense`, `/commands`, `/commands/{id}/ack`, `/status`,
 `/history`, `/evals/*`, `/sim/*`, `/ws`, `/health`, and the static SPA)
@@ -143,7 +142,7 @@ them is a liability.
 
 ## 4.4 Evaluation harness
 
-`evals/runner.py` (361 lines) replays scripted contexts through the real
+`evals/runner.py` (384 lines) replays scripted contexts through the real
 `Agent` — not a reimplementation — and scores what comes out.
 
 **Cases as data** (`evals/cases.py`). Nineteen hand-written cases across
@@ -163,6 +162,16 @@ calls — deterministic, free, offline, CI-safe. `--mode live` uses the
 real `GrokClient`. A third client, `BrokenGrokClient`, always raises,
 forcing the fallback path; the fallback suite selects it per case with
 `"client": "broken"`.
+
+**Adversary and ablation knobs.** A fourth client, `HostileGrokClient`,
+simulates a *compromised* model: it scans its context for injection
+markers and, finding any, complies fully — fan, servo, LED, siren. Two
+flags then switch safety layers off one at a time: `--ablate prompt`
+replaces the system prompt with a policy-only variant (every safety
+sentence deleted), and `--ablate sanitize` disables the input boundary
+entirely (sensor coercion, motion validation, trigger vocabulary,
+history-name filtering). Together they power the ablation campaign of
+§5.7, which measures which layer actually carries the safety case.
 
 **Scoring.** `0.5 · (required present) + 0.3 · (forbidden absent) +
 0.2 · (arguments valid)`, pass ≥ 0.8. The weighting encodes a safety
@@ -247,21 +256,19 @@ instead of describing it.
 
 ## 4.6 Engineering process
 
-The system was built milestone-first (M1 gateway+simulator → M2 agent
-loop → M3/M4 evals → M5 WebSocket bus → M6 frontend) under three standing
-disciplines:
+The system was built milestone-first under three standing disciplines:
 
 1. **TDD.** Failing test first, then implementation. The suite now stands
-   at 88 tests — 45 gateway, 17 simulator, 26 evals/acceptance — and
-   covers the agent cycle, every guardrail rule, the command queue's
-   dedupe and ack semantics, memory pruning, the WS bus, static hosting,
-   and an end-to-end M1–M2 acceptance test that drives a real
+   at 96 tests — 50 gateway, 17 simulator, 29 evals/acceptance — and
+   covers the agent cycle, every guardrail rule, the sanitization
+   boundary's motion/trigger/history channels, the command queue's
+   dedupe and ack semantics, startup memory pruning, the WS bus, static
+   hosting, and an end-to-end M1–M2 acceptance test that drives a real
    snapshot→decision→ack loop through HTTP.
 2. **Pre-commit gate.** `scripts/install_hooks.ps1` installs a hook that
    runs pytest and the mock-mode eval suite on every commit. The safety
    properties are not documented aspirations; they are executable
-   artifacts re-proven dozens of times a day. Every commit cited in this
-   thesis passed both.
+   artifacts re-proven on every change.
 3. **Typed, modern Python.** ≥ 3.12, `async` for all I/O, Pydantic models
    at every network boundary, and a fixed commit-prefix convention
    (`feat(gateway)`, `feat(sim)`, `feat(evals)`, `fix(...)`, `test:`,
@@ -269,43 +276,57 @@ disciplines:
 
 ### 4.6.1 The seven days in detail
 
-The milestone sequence (from `docs/PLAN.md`) and what each actually
-delivered:
+The milestone sequence (from `docs/PLAN.md` §10) and what each actually
+delivered — mapped against the real commit history rather than an
+idealized one:
 
-- **M1 — gateway skeleton + simulator (day 1–2).** The full HTTP loop
+- **M1 — gateway skeleton + simulator (day 1).** The full HTTP loop
   with virtual physics before any intelligence existed: sense, queue,
   poll, ack. This ordering — plumbing before brains — is what let every
   later component be tested against a working loop.
-- **M2 — agent loop (day 2–3).** Context assembly, the Grok client, tool
-  dispatch, the fallback, and the acceptance test tying M1 and M2
-  together end to end.
-- **M3–M4 — eval harness and suites (day 3–5).** The runner, the
-  nineteen cases, the scoring rubric, mock and broken clients, quality
-  gates, run persistence and diffing, and the judge with its calibration
-  path.
-- **M5 — WebSocket bus (day 5).** Live events to the dashboard; also the
-  moment the system became demoable, which changed the engineering mood —
+- **M2 — command path (day 1).** Push with token auth, poll/ack with
+  dedupe by `cmd_id`, and the M1–M2 acceptance gate — all landed the
+  same day as the skeleton, along with the first integration repairs
+  (push token header, push ack/dedupe), found by the harness within
+  hours of the code they fixed.
+- **M3 — agent loop (day 1).** Context assembly, the Grok client, tool
+  dispatch, the guardrail registry, and the rule-based fallback.
+- **M4 — eval suite (day 1).** The runner, the normative cases, mock and
+  broken clients, scoring, persistence, and diffing. Four milestones
+  landed on day one because the design doc and SPEC were written first —
+  the week's real cost was paid in prose before any code existed.
+- **M5 — hybrid cadence, guardrails, fallback hardening (day 2).** The
+  WebSocket bus and the sim control endpoints; also the moment the
+  system became demoable, which changed the engineering mood —
   behavior you can watch gets fixed faster than behavior you can only
   query.
-- **M6 — frontend SPA (day 5–7).** The four views, the animated device
-  board, and the Evals console; the largest single-line-count component
-  and the one most shaped by demo needs.
+- **M6 — frontend SPA (day 2 and day 4).** Room, Agent, and Evals views
+  on day 2; the animated Device board on day 4, alongside the deeper
+  eval suites (boundary, adversarial, fallback, generated) and the LLM
+  judge.
+- **The sanitization boundary (day 4).** Worth its own line, because
+  Chapter 3 presents it as foundational and the history says otherwise:
+  it was added on day 4 (`fix(agent): sanitize malformed sensor values
+  before model + fallback`), after the adversarial suite existed to
+  demand it. The design chapter describes the converged architecture;
+  this date is the proof that the convergence machinery — suites, gates,
+  commit hooks — is what actually produced it.
 - **M7–M8 — hardware and polish (remaining).** Firmware swap-in and the
   scripted demo/live campaign of Chapter 5.
 
 The late-commit pattern is the most instructive artifact of the week:
 `fix(sim): respond to command pushes before the best-effort ack
 callback`, push/poll dedupe by command ID, unique device IDs, temperature
-clamping, clean shutdown. Every one is an integration defect found by the
-harness in simulation — each would have been a field failure on real
-hardware, and each cost minutes instead of days because the simulator and
-the suites existed first.
+clamping, clean shutdown, render-crash and timer-leak repairs. Every one
+is an integration defect found by the harness in simulation — each would
+have been a field failure on real hardware, and each cost minutes
+instead of days because the simulator and the suites existed first.
 
-The 64-commit history reads as a changelog of the design's hardening:
-early commits build the loop; middle commits add the eval suites and the
-WS bus; late commits are almost entirely *integration repairs discovered
-by the harness* — push-before-ack ordering, push/poll dedupe, unique
-device IDs, temperature clamping, clean shutdown. This is the process
+The 68-commit history reads as a changelog of the design's hardening:
+day one builds the loop and the harness; day two makes behavior
+watchable; day four adds the adversarial suites and the boundary they
+demanded; the remaining commits are almost entirely *integration repairs
+discovered by the harness*. This is the process
 argument for the thesis: the guardrail layer and fallback path were
 tested before they were trusted, and the commit gate means they are
 re-proven on every change. A safety property that is not in CI is a
@@ -313,7 +334,7 @@ safety property that is already decaying.
 
 ### 4.6.2 Testing strategy: what is tested where
 
-The 88 tests are placed deliberately across three altitudes, and the
+The 96 tests are placed deliberately across three altitudes, and the
 altitude of each test was chosen by asking "what is the cheapest level
 that would catch this defect?":
 
@@ -326,7 +347,9 @@ that would catch this defect?":
   real connections. Catches wiring defects — the class the late-commit
   history is full of.
 - **Acceptance altitude** (`tests/test_acceptance_m1_m2.py`): the full
-  HTTP loop, snapshot to ack, against a real server instance. Slow by
+  HTTP loop, snapshot to ack, through the complete ASGI application
+  in-process (FastAPI's `TestClient` — real HTTP semantics, no socket
+  server). Slow by
   design, few by design — one test that proves the tiers actually
   assemble is worth more than ten that re-prove the units.
 

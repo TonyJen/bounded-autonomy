@@ -75,8 +75,10 @@ system with no fallback has no defined behavior under outage. Each
 alternative fails for a structural reason, not an empirical one, which is
 what licenses "only if" as a design conclusion rather than a measured
 law. Chapter 3's alternatives section (§3.8) makes the elimination
-explicit, and the adversarial suite tests that the one retained
-defense-in-depth prompt layer is never load-bearing.
+explicit, and §5.7's ablation campaign measures the claim directly:
+against a deliberately compromised model, the adversarial suite passes
+with the prompt layer deleted and fails with the boundary removed — the
+retained defense-in-depth prompt layer is never load-bearing.
 
 The "only if" direction matters as much as the "if". The thesis argues —
 by construction in Chapter 3, and by adversarial evaluation in Chapter 5 —
@@ -139,8 +141,9 @@ text says so, and Chapter 6 picks up exactly there.
    boundary, adversarial, fallback), a weighted scoring rubric with a 0.8
    pass bar, quality gates on hallucination rate and latency, regression
    diffs between runs, and a calibrated LLM judge for free-text outputs.
-4. **A working open system**: ~5,200 lines of gateway, simulator, eval,
-   and frontend code built over 64 commits in seven days; 88 automated
+4. **A working open system**: ~5,500 lines of gateway, simulator, eval,
+   and frontend code (of which ~2,150 are tests) built over 68 commits in
+   seven days; 96 automated
    tests; a pre-commit gate that re-proves safety on every change; a live
    dashboard; and a defense-ready demo (thesis/defense/).
 

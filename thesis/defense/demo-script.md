@@ -13,7 +13,7 @@ cd D:\Projects\GrokGuardian
 .venv\Scripts\python -m pytest gateway/tests simulator/tests evals/tests tests -q
 ```
 
-Expect: **88 passed**. If anything is red, fix it before the defense —
+Expect: **96 passed**. If anything is red, fix it before the defense —
 never demo on a red suite.
 
 Confirm `.env` has a valid `XAI_API_KEY` and `DEVICE_TOKEN`. Build the
@@ -58,9 +58,16 @@ Agent view · Evals view · `…/docs` (OpenAPI, for Q&A) ·
 1. `POST /sim/scenario` with `night_intruder` (from T3 or the Room view
    controls), or restart T2 with that scenario.
 2. Narrate: "dark room, motion burst — the agent lights the LED white and
-   logs why. And note what it does *not* do: no siren, because the siren
-   guardrail demands recent motion on its own terms. Guardrails aren't
-   suggestions."
+   logs why. And note what it does *not* do: no fan, no siren — restraint
+   is scored too. And if it *had* reached for the siren? The guardrails
+   stand behind the request: ten seconds a rolling hour, three at a time.
+   Guardrails aren't suggestions; they're budgets."
+
+*(Narration note: the scenario's motion is real, so the siren's motion
+precondition is genuinely satisfied during this beat — what you are
+showing is the model's restraint with the budget as backstop, not a
+precondition refusal. Do not claim the guardrail "refused" anything
+here; a committee member reading `tools.py` will check.)*
 
 ### Beat 3 — Fallback (≈30 s)
 
@@ -109,7 +116,7 @@ Two full run-throughs, from a cold boot of all three terminals, timed:
 
 | Checkpoint | Target |
 |---|---|
-| Pre-flight (deps, 88 tests, key validation, build) | < 10 min |
+| Pre-flight (deps, 96 tests, key validation, build) | < 10 min |
 | Beat 1 heat_spike: scenario start → fan visible | < 40 s |
 | Beat 2 night_intruder: swap → LED white | < 30 s |
 | Beat 3 fallback: outage → fan via rules → restore | < 45 s |

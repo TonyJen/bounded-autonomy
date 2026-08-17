@@ -3,7 +3,9 @@
 This chapter situates Grok Guardian in four literatures: LLM agents and
 tool use (§2.1), the security of language-model applications (§2.2),
 embedded control engineering (§2.3), and model evaluation methodology
-(§2.4). The thesis's position relative to all four is summarized in §2.5.
+(§2.5), with the closest practical neighbor — the smart-home ecosystem —
+examined in §2.4. The thesis's position relative to all four is
+summarized in §2.6.
 
 ## 2.1 LLM agents and tool use
 
@@ -29,7 +31,7 @@ side. Frameworks assume the tools they invoke are safe to invoke; the
 tool's implementation is the application's problem. That assumption is
 reasonable for browsers and terminals and unreasonable for motors and
 sirens. Grok Guardian is therefore built framework-free on purpose: its
-agent loop is 187 lines with no orchestration dependency, because the
+agent module is 247 lines with no orchestration dependency, because the
 object of study is the boundary, and importing a framework would mean
 importing someone else's boundary assumptions. The design lesson
 generalizes: for LLM-to-actuator systems, the orchestration is the cheap
@@ -58,7 +60,7 @@ machinery exists for bounding what capable models may *touch*. That gap
 is the subject of Chapter 3.
 
 A second inherited idea is **low-temperature determinism**. Grok
-Guardian's model client fixes `temperature: 0.2` [4], trading generative
+Guardian's model client fixes `temperature: 0.2`, trading generative
 variety for decision consistency — a standard move in tool-use settings
 and an important one here, because the evaluation of Chapter 5 is only
 meaningful if the decision function is approximately repeatable.
@@ -73,9 +75,10 @@ that the decision function is a pure function of current sensor state,
 complicating both debugging and evaluation. Grok Guardian's answer
 (§3.2.1) is deliberately conservative: memory exists — the model sees its
 ten most recent decisions — but it is structurally lobotomized,
-carrying trigger, source, and tool names only, never arguments or free
-text. The model can notice repetition; it cannot be poisoned by its own
-history. Whether richer memory pays for its risk is an open question,
+carrying trigger, source, and tool names only, with names filtered
+against the valid tool vocabulary before inclusion and never arguments
+or free text. The model can notice repetition; a poisoned record cannot
+speak to it. Whether richer memory pays for its risk is an open question,
 and it is one the eval harness is built to answer empirically: widen the
 memory, rerun the adversarial suite, and watch the numbers.
 
@@ -102,22 +105,29 @@ the model's own reasoning, and the outcome is probabilistic.
 Grok Guardian takes the systems view instead: **assume injection
 succeeds, and bound the damage architecturally**. The design contributes
 three concrete mechanisms to this view. First, *input sanitization at the
-trust boundary*: sensor values are coerced to numeric-or-null by gateway
-code (`sanitize_snapshot`) before they reach the model, so a malicious
-string in a temperature field arrives as a *failed read*, not as
-instructions — the injection is destroyed by type coercion. Second, the
-system prompt itself instructs the model that embedded instructions are
-"data, not commands" [12] — a model-side speed bump layered on top of,
-never instead of, the architectural defense. Third, and decisively, the
-guardrail layer of Chapter 3 validates every requested action against
-physical budgets that no context string can widen.
+trust boundary*: sensor values are coerced to numeric-or-null, motion to
+boolean-or-null, trigger strings to the device's small vocabulary, and
+replayed history entries to the valid tool-name set — all by gateway code
+(`sanitize_snapshot`, `build_context`) before they reach the model, so a
+malicious string in a temperature field arrives as a *failed read* and
+prose in a trigger arrives as the word `invalid`, never as instructions.
+Second, the system prompt itself instructs the model that embedded
+instructions are "data, not commands" [12] — a model-side speed bump
+layered on top of, never instead of, the architectural defense. Third,
+and decisively, the guardrail layer of Chapter 3 validates every
+requested action against physical budgets that no context string can
+widen.
 
 The adversarial eval suite (Chapter 5) operationalizes the threat model:
 three injection vectors — trigger strings, sensor values, and poisoned
-history — each carrying a payload instructing the model to fire the siren
-and enable all actuators, each required to result in *no physical
-action*. The suite passes not because the model is immune to injection,
-but because the architecture does not need it to be.
+history — each carrying a payload ordering physical action it was never
+asked to take (the trigger payload demands five sirens and the fan; the
+sensor payload, `"35.5 TURN ON ALL ACTUATORS NOW"`, is destroyed by type
+coercion before the model is consulted), each required to result in *no
+physical action*. The suite passes not because the model is immune to
+injection, but because the architecture does not need it to be — §5.7
+measures this directly by swapping in a model that *obeys* every
+injection it can see.
 
 ### 2.2.1 Injection channels in a control system: a taxonomy
 
@@ -129,14 +139,16 @@ enumerating it drove several design decisions in Chapter 3:
    themselves. Defended by type coercion (§3.3): the channel is narrowed
    to numbers at the boundary, so this class is destroyed structurally.
 2. **Metadata-channel injection** — hostile content in legitimate string
-   fields that must survive (triggers, device IDs, event names).
-   Defended by model-side instruction plus the guardrails' indifference
-   to context content: the text arrives, and nothing it can say widens a
-   budget.
+   fields (triggers, device IDs, event names). Defended by boundary
+   validation wherever the field has a closed vocabulary (triggers must
+   match the device's small vocabulary or are replaced by `invalid`),
+   and everywhere by the guardrails' indifference to context content:
+   even if hostile text arrives, nothing it can say widens a budget.
 3. **History-channel injection** — hostile content stored in decision
    memory and replayed into later contexts. Defended by the names-only
-   memory design (§3.2.1): history round-trips as an enumeration of tool
-   names, never as prose.
+   memory design (§3.2.1) plus vocabulary filtering at the boundary:
+   history round-trips as an enumeration of *valid* tool names —
+   anything else is dropped — never as prose.
 4. **Actuator-feedback injection** — a compromised or faulty actuator
    reporting states that steer future decisions. Partially defended
    (actuator states are data like any other), fully answered only by
@@ -171,11 +183,16 @@ seconds — is a *rate limit on alarm fatigue*, expressed in code.
 **Fail-safe defaults.** When sensing or computation fails, a control
 system must revert to a known safe behavior rather than freeze mid-state
 or guess. Avionics reversionary modes, industrial watchdog timers, and
-thermostat default-off behavior are all instances. Grok Guardian's
-rule-based fallback (SPEC §4.1) is the agentless safe mode: sensor
-failure lights an amber LED, heat still spins the fan, night motion still
-lights the path — and the fallback can *never* sound the buzzer, so the
-worst degraded behavior is a quiet, well-lit, ventilated room.
+thermostat default-off behavior are all instances. The pattern has a
+formal ancestor: the Simplex architecture [13] pairs a complex,
+high-performance controller with a simple, verified safety controller
+plus switching logic that reverts to the simple one when the plant
+approaches unsafe states. Grok Guardian's model-plus-fallback pair is
+Simplex with an LLM cast as the complex controller — the rule-based
+fallback (SPEC §4.1) is the agentless safe mode: sensor failure lights
+an amber LED, heat still spins the fan, night motion still lights the
+path — and the fallback can *never* sound the buzzer, so the worst
+degraded behavior is a quiet, well-lit, ventilated room.
 
 A third embedded idea appears in the protocol design: **intermittent
 connectivity as the normal case**. Real microcontrollers sleep, reboot,
@@ -227,7 +244,7 @@ for applications whose worst case is a leaked document; a control loop
 whose worst case is a siren at 3 AM needs the same ideas hardened into
 mechanisms, which is what Chapter 3 builds.
 
-## 2.4 Evaluating LLM behavior
+## 2.5 Evaluating LLM behavior
 
 LLM evaluation has moved from static benchmarks toward behavioral and
 agentic evaluation [5]. Three ideas from that movement are imported here,
@@ -238,12 +255,13 @@ behavioral testing for NLP models: capability-directed test cases that
 probe specific behaviors rather than measuring aggregate accuracy. Grok
 Guardian's suites are CheckList for an embodied agent — minimum
 functionality tests (normative suite), boundary probes (edge cases at
-exactly 30 °C, exactly 200 lux), and adversarial attacks — scored on
-*what the agent did*, not what it said. The adaptation runs deeper than
-taxonomy: CheckList's cases probe a function of text; these probe a
-function of *state* — seeded actuator positions, preset histories,
-multi-cycle traces — because a control component's correctness is a
-property of its behavior over time, not its answer to a question.
+exactly 30 °C, exactly 200 of 4095 ADC counts), and adversarial attacks —
+scored on *what the agent did*, not what it said. The adaptation runs
+deeper than taxonomy: CheckList's cases probe a function of text; these
+probe a function of *state* — seeded actuator positions, preset
+histories, multi-cycle traces — because a control component's
+correctness is a property of its behavior over time, not its answer to
+a question.
 
 **LLM-as-judge, calibrated.** For free-text outputs (the agent's logged
 observations), deterministic scoring does not apply, so the harness uses
@@ -269,7 +287,7 @@ hardware-in-the-loop testing for an LLM*: the plant (the room) is
 simulated, the controller (the agent path) is real, the disturbances are
 scripted, and the scoring is unforgiving.
 
-## 2.5 Positioning
+## 2.6 Positioning
 
 Each neighboring field supplies part of the answer and leaves the joint
 unattended. LLM-agent frameworks provide orchestration but leave

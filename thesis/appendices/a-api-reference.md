@@ -9,7 +9,7 @@ header; the gateway is the only component holding the xAI key.
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/sense` | Submit a sensor snapshot; wakes the agent for `heartbeat` and `event` types |
-| GET | `/commands` | Poll pending actuator commands (cursor: `after_id`) |
+| GET | `/commands` | Poll queued actuator commands (cursor: `after`) |
 | POST | `/commands/{cmd_id}/ack` | Acknowledge an executed command (`{"ok": true}` or `{"ok": false, "error": …}`) |
 
 ### `POST /sense` payload

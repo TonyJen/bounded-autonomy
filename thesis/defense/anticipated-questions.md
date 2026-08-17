@@ -60,8 +60,12 @@ I'm not — that's the design. I assume injection succeeds. The injected
 text can influence what the model *asks for*, but every ask meets a
 deterministic validator before it touches physics, and the scariest
 actuator (the siren) has a physical precondition — recent motion — that no
-string in context can fabricate. Architectural mitigation, not model-side
-hope. [Show §3.7; open `gateway/tools.py` siren check.]
+string in context can fabricate. And the layering is measured, not
+asserted: the §5.7 ablation swaps in a model that *obeys* every injection
+it can see — the adversarial suite passes 3/3 with the prompt's safety
+sentences deleted, and fails 0/3 with the boundary switched off.
+Architectural mitigation, not model-side
+hope. [Show §3.7; open `gateway/tools.py` siren check; backup B6.]
 
 *Likely follow-up: "What if the attacker can inject motion events?"* —
 Then they've compromised the *device* or the network path, which is why
@@ -141,7 +145,8 @@ mock never emits — is exactly what the staged live campaign measures.
 
 **Q12. LLM-as-judge is circular — a model grading a model.**
 Hence calibration: the judge is scored against human labels first
-(`--calibrate`, labels in `evals/calibration/`), and only calibrated
+(`python -m evals.judge --calibrate`, labels in `evals/calibration/`),
+and only calibrated
 judge output is reported. And the judge only grades free-text rationales;
 the pass/fail backbone — required tools, forbidden absent, valid args —
 is fully deterministic.
@@ -197,9 +202,15 @@ model-agnostic gateway accommodates by changing one environment variable
 
 **Q17. What does a decision cost, in dollars and energy?**
 Per cycle: one chat/completions call with a compact JSON context — the
-recorded usage fields exist precisely so this is measurable, and the
-history endpoint reports tokens per decision. At heartbeat cadence the
-cost is dominated by idle cycles, which is itself a finding: a real
+system prompt plus a few hundred tokens of structured state and history,
+and a short tool-call completion, so call it a few hundred tokens a
+decision. At published frontier-API prices — single-digit dollars per
+million input tokens — that's on the order of a tenth of a cent per
+decision, a few cents a day at heartbeat cadence. The exact number is
+measurable rather than estimated: the gateway records prompt and
+completion tokens per decision, and the live campaign (M8) turns that
+into a receipt. The interesting cost finding is structural: at heartbeat
+cadence the spend is dominated by idle cycles, so a real
 deployment should trigger model cycles on *events* and let the fallback
 handle heartbeats — the architecture already supports exactly that split,
 since the fallback and the model share the dispatch path. Energy-wise,
