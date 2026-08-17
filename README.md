@@ -191,6 +191,7 @@ You can also trigger runs from the dashboard's **Evals** view or the API
 - [docs/SPEC.md](docs/SPEC.md) — protocols, schemas, guardrails, acceptance criteria
 - [docs/GUIDE.md](docs/GUIDE.md) — new-user + developer guide
 - [docs/plans/](docs/plans/) — implementation plans
+- [thesis/](thesis/) — Princeton-style senior thesis + defense package
 
 ## Status
 
