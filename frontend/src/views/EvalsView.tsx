@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useGatewayWS, GatewayMessage } from '../lib/ws'
 import StatCard from '../components/StatCard'
@@ -23,6 +23,14 @@ export default function EvalsView() {
   const [summary, setSummary] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
   const [viewingRun, setViewingRun] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopPolling = () => {
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null }
+  }
+  // no polling past unmount (tab switches must not leak intervals)
+  useEffect(() => stopPolling, [])
 
   const refreshHistory = useCallback(() => {
     api.getEvalHistory().then((h) => setHistory(h.runs)).catch(() => {})
@@ -34,17 +42,25 @@ export default function EvalsView() {
       try {
         const job = await api.getEvalRun(jobId)
         if (job.status !== 'running') {
-          clearInterval(timer)
+          stopPolling()
           setRunning(null)
           if (job.status === 'completed') {
             setResults(job.result.results)
-            setSummary(job.result.summary)
+            setSummary({ ...job.result.summary,
+                         mode: job.result.metadata?.mode })
             refreshHistory()
+          } else {
+            setRunError(job.error ?? 'eval run failed')
           }
         }
-      } catch { clearInterval(timer); setRunning(null) }
+      } catch {
+        stopPolling()
+        setRunning(null)
+        setRunError('lost contact with the gateway mid-run')
+      }
     }
-    const timer = setInterval(check, 1000)
+    stopPolling()
+    pollTimer.current = setInterval(check, 1000)
     // Check immediately too — a fast mock run can finish before the first tick.
     check()
   }, [refreshHistory])
@@ -60,10 +76,14 @@ export default function EvalsView() {
     setRunning(mode)
     setResults(null)
     setViewingRun(null)
+    setRunError(null)
     try {
       const { run_id } = await api.runEvals(mode)
       poll(run_id)
-    } catch { setRunning(null) }
+    } catch {
+      setRunning(null)
+      setRunError(`could not start ${mode} run — is the gateway up?`)
+    }
   }
 
   const openRun = async (runId: string, mode: string) => {
@@ -99,6 +119,12 @@ export default function EvalsView() {
           </span>
         )}
       </div>
+
+      {runError && (
+        <div className="px-3 py-2 rounded-md bg-critical/20 text-critical text-sm">
+          ✗ {runError}
+        </div>
+      )}
 
       {results && (
         <StatCard title={viewingRun

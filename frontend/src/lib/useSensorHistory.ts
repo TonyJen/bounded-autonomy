@@ -12,15 +12,18 @@ type SnapshotSensors = {
 }
 
 /** Pure append: null temp skips the sample (sensor-failure snapshots don't
- *  pollute the charts); null humidity/light coerce to 0. Capped at 60. */
+ *  pollute the charts); null humidity/light carry the previous value
+ *  forward (a partial sensor failure shouldn't dip the chart to 0).
+ *  Capped at 60. */
 export function appendSnapshot(
   hist: SensorHistory, s: SnapshotSensors,
 ): SensorHistory {
   if (s.temp_c == null) return hist
+  const last = (a: number[]) => a[a.length - 1] ?? 0
   return {
     t: [...hist.t.slice(-(CAP - 1)), s.temp_c],
-    h: [...hist.h.slice(-(CAP - 1)), s.humidity_pct ?? 0],
-    l: [...hist.l.slice(-(CAP - 1)), s.light ?? 0],
+    h: [...hist.h.slice(-(CAP - 1)), s.humidity_pct ?? last(hist.h)],
+    l: [...hist.l.slice(-(CAP - 1)), s.light ?? last(hist.l)],
   }
 }
 

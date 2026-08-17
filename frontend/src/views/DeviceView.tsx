@@ -6,13 +6,8 @@ import {
 } from '../lib/deviceState'
 import StatCard from '../components/StatCard'
 import DeviceIllustration from '../components/DeviceIllustration'
+import SimControls from '../components/SimControls'
 import { useSensorHistory } from '../lib/useSensorHistory'
-
-const SCENARIOS = [
-  ['heat_spike', 'Heat spike'], ['night_intruder', 'Night intruder'],
-  ['quiet_afternoon', 'Quiet afternoon'], ['sensor_failure', 'Sensor failure'],
-] as const
-const EVENTS = [['motion', 'Motion'], ['heat', 'Heat'], ['dark', 'Dark']] as const
 
 export default function DeviceView() {
   const [state, setState] = useState(initialDeviceState)
@@ -29,6 +24,11 @@ export default function DeviceView() {
       buzzTimer.current = setTimeout(
         () => forceRender((n) => n + 1), BUZZER_WINDOW_MS)
     }
+  }, [handleMessage])
+
+  // clear the pending buzzer-expiry timer on unmount
+  useEffect(() => () => {
+    if (buzzTimer.current) clearTimeout(buzzTimer.current)
   }, [])
 
   const { connected } = useGatewayWS(onMessage)
@@ -48,22 +48,7 @@ export default function DeviceView() {
           live ? 'bg-good/20 text-good' : 'bg-serious/20 text-serious'}`}>
           ● {live ? 'live' : 'offline'}
         </span>
-        <span className="text-muted text-sm ml-2">Scenarios:</span>
-        {SCENARIOS.map(([id, label]) => (
-          <button key={id} onClick={() => api.simScenario(id)}
-            className="px-3 py-1 rounded-md bg-card border border-cardborder
-                       text-ink2 hover:text-ink text-sm">
-            {label}
-          </button>
-        ))}
-        <span className="text-muted text-sm ml-2">Events:</span>
-        {EVENTS.map(([id, label]) => (
-          <button key={id} onClick={() => api.simEvent(id)}
-            className="px-3 py-1 rounded-md bg-card border border-cardborder
-                       text-ink2 hover:text-ink text-sm">
-            {label}
-          </button>
-        ))}
+        <SimControls />
       </div>
 
       <StatCard title="Simulated device">

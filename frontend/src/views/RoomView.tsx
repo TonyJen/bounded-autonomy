@@ -2,20 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useGatewayWS, GatewayMessage } from '../lib/ws'
 import { useSensorHistory } from '../lib/useSensorHistory'
-import { fmtTemp } from '../lib/format'
 import Gauge from '../components/Gauge'
 import Sparkline from '../components/Sparkline'
 import StatCard from '../components/StatCard'
 import ActuatorCard from '../components/ActuatorCard'
+import SimControls from '../components/SimControls'
 
 type Sensors = { temp_c: number | null; humidity_pct: number | null;
                  light: number | null; motion: number | boolean | null }
 
-const SCENARIOS = [
-  ['heat_spike', 'Heat spike'], ['night_intruder', 'Night intruder'],
-  ['quiet_afternoon', 'Quiet afternoon'], ['sensor_failure', 'Sensor failure'],
-] as const
-const EVENTS = [['motion', 'Motion'], ['heat', 'Heat'], ['dark', 'Dark']] as const
+const STATUS_POLL_MS = 30_000
 
 export default function RoomView() {
   const [sensors, setSensors] = useState<Sensors | null>(null)
@@ -35,11 +31,20 @@ export default function RoomView() {
 
   const { connected } = useGatewayWS(onMessage)
 
+  // Seed from /status on mount (including actuators, which the WS only
+  // shows after the next snapshot), then re-poll slowly so a device going
+  // stale flips the badge to offline without a page refresh.
   useEffect(() => {
-    api.getStatus().then((st) => {
+    let stop = false
+    const load = () => api.getStatus().then((st) => {
+      if (stop) return
       setOnline(st.device.online)
-      setSensors(st.sensors)
-    }).catch(() => setOnline(false))
+      if (st.sensors) setSensors(st.sensors)
+      if (st.actuators) setActuators(st.actuators)
+    }).catch(() => { if (!stop) setOnline(false) })
+    load()
+    const t = setInterval(load, STATUS_POLL_MS)
+    return () => { stop = true; clearInterval(t) }
   }, [])
 
   return (
@@ -50,22 +55,7 @@ export default function RoomView() {
           connected && online ? 'bg-good/20 text-good' : 'bg-serious/20 text-serious'}`}>
           ● {connected && online ? 'live' : 'offline'}
         </span>
-        <span className="text-muted text-sm ml-2">Scenarios:</span>
-        {SCENARIOS.map(([id, label]) => (
-          <button key={id} onClick={() => api.simScenario(id)}
-            className="px-3 py-1 rounded-md bg-card border border-cardborder
-                       text-ink2 hover:text-ink text-sm">
-            {label}
-          </button>
-        ))}
-        <span className="text-muted text-sm ml-2">Events:</span>
-        {EVENTS.map(([id, label]) => (
-          <button key={id} onClick={() => api.simEvent(id)}
-            className="px-3 py-1 rounded-md bg-card border border-cardborder
-                       text-ink2 hover:text-ink text-sm">
-            {label}
-          </button>
-        ))}
+        <SimControls />
       </div>
 
       {/* gauges row */}

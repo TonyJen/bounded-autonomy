@@ -5,6 +5,9 @@ type Props = {
 
 export default function Gauge({ label, value, min, max, unit, color }: Props) {
   const pct = value == null ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)))
+  // large-range values (e.g. light ADC 0–4095) read better without decimals
+  const text = value == null ? '—'
+    : Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1)
   // semicircle from 180°→0°; radius 40, center (50,50)
   // SVG y grows downward: upper semicircle = center minus sin component.
   // Round to 3 decimals so cos(π/2)≈6e-17 doesn't leak into the path string.
@@ -27,7 +30,7 @@ export default function Gauge({ label, value, min, max, unit, color }: Props) {
         )}
       </svg>
       <div className="text-3xl font-semibold text-ink -mt-6">
-        {value == null ? '—' : value.toFixed(1)}
+        {text}
         <span className="text-base text-ink2 ml-1">{unit}</span>
       </div>
       <div className="text-muted text-sm">{label}</div>

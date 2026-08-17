@@ -59,7 +59,7 @@ gateway never wedges the actuator path.
 |---|---|---|
 | POST | `/evals/run` | Trigger an eval run (mode, suites, gates in body) |
 | GET | `/evals/run/{run_id}` | Poll a running eval |
-| POST | `/evals/record/{run_id}` | Persist a finished run to `eval_runs` / `eval_results` |
+| GET | `/evals/record/{run_id}` | Full stored run record (per-case detail); reads the durable JSON artifact so it survives restarts |
 | GET | `/evals/history` | Past runs and run-to-run diffs |
 
 ## Simulator control

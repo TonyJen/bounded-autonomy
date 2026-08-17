@@ -5,16 +5,24 @@ import AgentView from './views/AgentView'
 import EvalsView from './views/EvalsView'
 
 type Tab = 'room' | 'device' | 'agent' | 'evals'
+const TABS: Tab[] = ['room', 'device', 'agent', 'evals']
+
+function tabFromHash(): Tab {
+  const h = window.location.hash.slice(1) as Tab
+  return TABS.includes(h) ? h : 'room'
+}
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('room')
+  // tab rides the URL hash so refresh/sharing preserves the view
+  const [tab, setTab] = useState<Tab>(tabFromHash)
+  useEffect(() => { window.location.hash = tab }, [tab])
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <header className="flex items-center gap-6 px-6 py-4 border-b border-cardborder">
         <img src="/icon.svg" alt="Grok Guardian logo" className="w-8 h-8" />
         <span className="text-lg font-semibold">Grok Guardian</span>
         <nav className="flex gap-2">
-          {(['room', 'device', 'agent', 'evals'] as Tab[]).map((t) => (
+          {TABS.map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1 rounded-md capitalize ${
                 tab === t ? 'bg-card text-ink' : 'text-ink2 hover:text-ink'}`}>

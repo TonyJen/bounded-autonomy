@@ -8,7 +8,9 @@ export type GatewayMessage = {
 export function useGatewayWS(onMessage: (msg: GatewayMessage) => void) {
   const [connected, setConnected] = useState(false)
   const handlerRef = useRef(onMessage)
-  handlerRef.current = onMessage
+  // Assign in an effect, not during render — render must stay pure
+  // (StrictMode double-invokes it).
+  useEffect(() => { handlerRef.current = onMessage }, [onMessage])
 
   useEffect(() => {
     let ws: WebSocket | null = null

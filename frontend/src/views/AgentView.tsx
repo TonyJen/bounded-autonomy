@@ -15,6 +15,12 @@ function parseCalls(d: Decision): { name: string; args: any }[] {
   try { return JSON.parse(d.tool_calls_json) } catch { return [] }
 }
 
+/** context_json comes from SQLite and is shown raw in the UI; a malformed
+ *  row must not crash the whole view during render. */
+function parseContext(d: Decision): any {
+  try { return JSON.parse(d.context_json || '{}') } catch { return {} }
+}
+
 export default function AgentView() {
   const [decisions, setDecisions] = useState<Decision[]>([])
 
@@ -84,8 +90,7 @@ export default function AgentView() {
               <summary className="text-ink2 cursor-pointer">context</summary>
               <pre className="mt-2 text-xs bg-bg rounded p-2 overflow-x-auto
                               text-ink2 whitespace-pre-wrap">
-                {JSON.stringify(JSON.parse(latest.context_json || '{}'),
-                                null, 2)}
+                {JSON.stringify(parseContext(latest), null, 2)}
               </pre>
             </details>
           </>

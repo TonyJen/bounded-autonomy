@@ -12,7 +12,13 @@ test('null temp skips the whole sample (matches RoomView rule)', () => {
   expect(h).toBe(empty)
 })
 
-test('null humidity/light coerce to 0', () => {
+test('null humidity/light carry the previous value (no 0-dip on partial failure)', () => {
+  let h = appendSnapshot(empty, { temp_c: 22, humidity_pct: 41, light: 612 })
+  h = appendSnapshot(h, { temp_c: 22.1, humidity_pct: null, light: null })
+  expect(h).toEqual({ t: [22, 22.1], h: [41, 41], l: [612, 612] })
+})
+
+test('null humidity/light with no history fall back to 0', () => {
   const h = appendSnapshot(empty, { temp_c: 22, humidity_pct: null, light: null })
   expect(h).toEqual({ t: [22], h: [0], l: [0] })
 })
