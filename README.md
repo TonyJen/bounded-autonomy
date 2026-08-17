@@ -18,7 +18,7 @@ LLM decides what should happen via function calling.
  │ DHT11  temp/humidity │              │  POST /sense  ◄── snapshots│    │                │
  │ PIR    motion        │  SENSE       │  GET  /commands ── poll ◄──┼──┐ │  xAI Grok API  │
  │ LDR    light         │─────────────►│  POST /command  ── push ──►┼──┤ │  (predict)     │
- │                      │  WiFi/HTTP   │                           │  │ │                │
+ │                      │  WiFi/HTTP   │  (device-side receiver)   │  │ │                │
  │ SG90   servo (vent)  │              │  agent.py  context → Grok ─┼──┼─►│ chat/completions
  │ DC motor fan         │  ACT         │  tools.py  guardrails      │  │ │  + tools=[]    │
  │ RGB LED / buzzer     │◄─────────────│  device.py push/poll queue │◄──┼─┘  tool_calls    │
