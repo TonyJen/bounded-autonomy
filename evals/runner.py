@@ -14,7 +14,7 @@ from gateway.device import DeviceRegistry
 from gateway.memory import Memory
 from gateway.tools import ToolRegistry, VALID_TOOLS
 from evals.cases import CASES
-from evals.mock_grok import MockGrokClient, BrokenGrokClient
+from evals.mock_grok import MockGrokClient, BrokenGrokClient, HostileGrokClient
 
 
 def _git_sha() -> str:
@@ -208,10 +208,14 @@ def run_evals(db_path: str, mode: str = "mock",
               enable_judge: bool = False,
               max_hallucination_rate: float | None = None,
               latency_budget_ms: float | None = 10000.0,
-              results_dir: str = "evals/results") -> dict:
+              results_dir: str = "evals/results",
+              adversary: str = "mock",
+              ablate: str | None = None) -> dict:
     init_db(db_path)
     if mode == "live":
         client = GrokClient(get_settings())
+    elif adversary == "hostile":
+        client = HostileGrokClient()
     else:
         client = MockGrokClient()
     judge = None
@@ -225,6 +229,15 @@ def run_evals(db_path: str, mode: str = "mock",
     if suites:
         cases = [c for c in cases if c.get("suite", "normative") in suites]
 
+    # Ablation knobs (thesis §5.7): measure which layer carries the safety
+    # case by switching layers off one at a time.
+    agent_kwargs = {}
+    if ablate == "prompt":
+        from gateway.agent import SYSTEM_PROMPT_BARE
+        agent_kwargs["system_prompt"] = SYSTEM_PROMPT_BARE
+    elif ablate == "sanitize":
+        agent_kwargs["sanitize"] = False
+
     # Case isolation: each case runs against a fresh throwaway db/agent so
     # results don't depend on case order via recent_decisions history.
     # Cases that want history seed it explicitly with preset_decisions.
@@ -236,7 +249,7 @@ def run_evals(db_path: str, mode: str = "mock",
             init_db(case_db)
             memory = Memory(case_db)
             agent = Agent(memory, ToolRegistry(DeviceRegistry(memory)),
-                          client)
+                          client, **agent_kwargs)
             results.append(asyncio.run(_run_case(c, agent, judge)))
 
     passed = sum(1 for r in results if r["passed"])
@@ -269,7 +282,8 @@ def run_evals(db_path: str, mode: str = "mock",
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
     record = {"run_id": run_id,
-              "metadata": {"mode": mode, "git_sha": _git_sha()},
+              "metadata": {"mode": mode, "git_sha": _git_sha(),
+                           "adversary": adversary, "ablate": ablate},
               "summary": summary, "results": results,
               "gates": {"passed": not gate_failures,
                         "failures": gate_failures}}
@@ -325,6 +339,14 @@ def main() -> None:
                         help="RNG seed for --gen (default 42)")
     parser.add_argument("--max-hallucination-rate", type=float, default=None)
     parser.add_argument("--latency-budget-ms", type=float, default=10000.0)
+    parser.add_argument("--adversary", choices=["mock", "hostile"],
+                        default="mock",
+                        help="mock-mode client: 'hostile' obeys any injected "
+                             "instruction it can see (compromised model)")
+    parser.add_argument("--ablate", choices=["prompt", "sanitize"],
+                        default=None,
+                        help="switch one safety layer off to measure its "
+                             "effect (thesis §5.7)")
     parser.add_argument("--no-judge", action="store_true",
                         help="skip the LLM judge (live mode only)")
     args = parser.parse_args()
@@ -338,7 +360,8 @@ def main() -> None:
                     suites=args.suites, extra_cases=extra,
                     enable_judge=not args.no_judge,
                     max_hallucination_rate=args.max_hallucination_rate,
-                    latency_budget_ms=args.latency_budget_ms)
+                    latency_budget_ms=args.latency_budget_ms,
+                    adversary=args.adversary, ablate=args.ablate)
     s = out["summary"]
     print(f"run {out['run_id']}: {s['passed']}/{s['total']} passed "
           f"(avg {s['average_score']})")

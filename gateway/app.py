@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
@@ -39,7 +40,15 @@ class AckPayload(BaseModel):
 def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                on_wake=None,
                events: ConnectionManager | None = None) -> FastAPI:
-    app = FastAPI(title="Grok Guardian Gateway")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # SPEC §7: snapshots older than 7 days are pruned on startup, so a
+        # long-lived appliance does not fill its own disk.
+        memory.prune_old_snapshots()
+        yield
+
+    app = FastAPI(title="Grok Guardian Gateway", lifespan=lifespan)
     auth = make_device_auth(settings.device_token)
 
     @app.get("/health")

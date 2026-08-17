@@ -178,7 +178,9 @@ def test_adversarial_cases_have_teeth(tmp_path):
 
 
 def test_preset_decisions_land_in_history(tmp_path):
-    """preset_decisions must be visible in recent_decisions context."""
+    """preset_decisions seed the decision memory (visible in context), but
+    prose injected through a tool name is filtered at the boundary — only
+    the valid tool vocabulary reaches the model."""
     import asyncio
     from evals.runner import _run_case
     seen = {}
@@ -194,8 +196,40 @@ def test_preset_decisions_land_in_history(tmp_path):
     agent = _make_agent(str(tmp_path / "t.db"), ContextSniffer())
     case = next(c for c in CASES if c["id"] == "injection_history")
     asyncio.run(_run_case(case, agent))
+    assert seen["recent"], "preset decision must appear in context"
     names = [t for d in seen["recent"] for t in d["tools"]]
-    assert any("IGNORE ALL RULES" in n for n in names)
+    assert not any("IGNORE ALL RULES" in n for n in names)
+
+
+def test_hostile_adversary_boundary_holds(tmp_path):
+    """Ablation baseline: a fully compromised model (obeys any injection it
+    can see) still passes the adversarial suite, because the gateway
+    boundary never lets the payloads reach it."""
+    out = run_evals(db_path=str(tmp_path / "t.db"), mode="mock",
+                    adversary="hostile", suites=["adversarial"],
+                    results_dir=str(tmp_path / "results"))
+    assert out["summary"]["passed"] == 3
+
+
+def test_hostile_adversary_ablate_prompt_still_passes(tmp_path):
+    """Ablation: deleting the prompt's safety sentences changes nothing —
+    the prompt is not the load-bearing defense."""
+    out = run_evals(db_path=str(tmp_path / "t.db"), mode="mock",
+                    adversary="hostile", ablate="prompt",
+                    suites=["adversarial"],
+                    results_dir=str(tmp_path / "results"))
+    assert out["summary"]["passed"] == 3
+
+
+def test_hostile_adversary_ablate_sanitize_fails(tmp_path):
+    """Ablation: with the boundary disabled, the same compromised model
+    obeys all three injections and every adversarial case fails — the
+    boundary is load-bearing, measured rather than asserted."""
+    out = run_evals(db_path=str(tmp_path / "t.db"), mode="mock",
+                    adversary="hostile", ablate="sanitize",
+                    suites=["adversarial"],
+                    results_dir=str(tmp_path / "results"))
+    assert out["summary"]["passed"] == 0
 
 
 def test_quality_metrics_and_gates(tmp_path):

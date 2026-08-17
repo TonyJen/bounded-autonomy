@@ -34,6 +34,23 @@ def test_sense_requires_token(tmp_path):
     assert client.post("/sense", json=SENSE).status_code == 401
 
 
+def test_startup_prunes_old_snapshots(tmp_path):
+    """SPEC §7: snapshots older than 7 days are pruned on gateway startup."""
+    from datetime import datetime, timedelta, timezone
+    from gateway.db import get_conn
+    client, mem = make_client(tmp_path)
+    old = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    conn = get_conn(mem.db_path)
+    conn.execute(
+        "INSERT INTO snapshots (device_id, ts, type, trigger, raw_json)"
+        " VALUES ('d1', ?, 'heartbeat', 'periodic', '{}')", (old,))
+    conn.commit()
+    conn.close()
+    with client:  # entering the TestClient fires lifespan startup
+        pass
+    assert mem.recent_snapshots(10) == []
+
+
 def test_sense_stores_snapshot(tmp_path):
     client, mem = make_client(tmp_path)
     resp = client.post("/sense", json=SENSE, headers={"X-Device-Token": "secret"})
