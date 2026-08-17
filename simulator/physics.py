@@ -51,6 +51,8 @@ class RoomModel:
             # actuator feedback: fan pulls toward 22°C at ~0.5°C/min
             if self.fan and self.temp_c > 22.0:
                 self.temp_c = max(22.0, self.temp_c - (0.5 / 60.0) * dt_s)
+            # keep simulated rooms within realistic bounds
+            self.temp_c = max(-40.0, min(60.0, self.temp_c))
         # humidity inversely coupled to temperature
         if self.humidity_pct is not None and self.temp_c is not None:
             self.humidity_pct = min(100.0, max(0.0,

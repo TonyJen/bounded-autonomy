@@ -3,6 +3,8 @@ import asyncio
 import json
 import os
 import re
+import signal
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -221,9 +223,12 @@ class SimDevice:
         return ThreadingHTTPServer(("0.0.0.0", port), Handler)
 
     # ── run loop ────────────────────────────────────────────────────
-    async def run(self, cycles: int = 10_000) -> None:
+    async def run(self, cycles: int = 10_000,
+                  stop_event: asyncio.Event | None = None) -> None:
         consecutive_errors = 0
         for i in range(cycles):
+            if stop_event is not None and stop_event.is_set():
+                break
             self.room.tick(1.0 * self.speed)
             if self._motion_clear_at is not None:
                 self._motion_clear_at -= 1
@@ -249,6 +254,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", default="http://localhost:8000")
     parser.add_argument("--token", default="dev-token")
+    parser.add_argument("--device-id", default=None,
+                        help="device identifier sent to gateway "
+                             "(default: sim-<pid>)")
     parser.add_argument("--scenario", default=None)
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--push-port", type=int, default=8080)
@@ -257,13 +265,36 @@ def main() -> None:
                              "~69 days at speed 1 (10k was ~3 min at 60x)")
     args = parser.parse_args()
 
-    dev = SimDevice(args.gateway, args.token, speed=args.speed)
+    device_id = args.device_id or f"sim-{os.getpid()}"
+    dev = SimDevice(args.gateway, args.token, device_id=device_id,
+                    speed=args.speed)
     if args.scenario:
         with open(f"simulator/scenarios/{args.scenario}.json") as f:
             dev.room.apply_scenario(json.load(f))
     server = dev.run_push_server(args.push_port)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    asyncio.run(dev.run(cycles=args.cycles))
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    stop_event = asyncio.Event()
+
+    def _shutdown(signum, frame):
+        print(f"\nreceived signal {signum}, shutting down simulator...")
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _shutdown)
+        except ValueError:
+            pass  # SIGTERM may not be available on all platforms
+
+    try:
+        loop.run_until_complete(dev.run(cycles=args.cycles,
+                                        stop_event=stop_event))
+    finally:
+        server.shutdown()
+        loop.close()
+        sys.exit(0)
 
 
 if __name__ == "__main__":
