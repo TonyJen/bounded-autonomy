@@ -18,7 +18,7 @@ foreach ($candidate in @($env:CXX, "zig", "g++", "clang++")) {
   if (Test-Path $candidate) { $cxx = $candidate; break }
 }
 if (-not $cxx) {
-  $fallback = "D:\tmp\zig-x86_64-windows-0.15.2\zig.exe"
+  $fallback = "D:\Programs\zig\zig.exe"
   if (Test-Path $fallback) { $cxx = $fallback }
 }
 if (-not $cxx) { throw "No C++ compiler found (tried zig, g++, clang++)." }
