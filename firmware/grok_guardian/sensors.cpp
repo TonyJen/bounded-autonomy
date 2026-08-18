@@ -13,7 +13,10 @@
 
 static DHT dht(PIN_DHT, DHT_TYPE);
 static SensorReadings cur = {NAN, NAN, false, false, 0, false};
-static unsigned long last_dht_ms = 0;
+// Start "one interval in the past" so the FIRST tick samples immediately
+// (unsigned wraparound idiom) — otherwise a fast boot+heartbeat ships
+// stale invalid readings.
+static unsigned long last_dht_ms = (unsigned long)-DHT_MIN_INTERVAL_MS;
 static bool prev_motion = false;
 static bool prev_hot = false;
 static String pending_event = "";
