@@ -130,6 +130,40 @@ No `frontend/dist`? The gateway runs as a pure API — nothing breaks.
 
 `--speed 60` compresses time 60× (heartbeat every ~5s instead of 5min).
 
+## Get Started — firmware (emulated, no hardware)
+
+The real Arduino firmware lives in
+[firmware/grok_guardian/](firmware/grok_guardian/) and runs under the
+[Wokwi](https://wokwi.com) ESP-32 emulator — actual C++ talking the SPEC
+protocol to your gateway, no kit required. Two profiles (details in
+[docs/GUIDE.md](docs/GUIDE.md) §The emulated device):
+
+**A — browser demo (zero install).** Expose the gateway, then paste and
+run:
+
+```powershell
+cloudflared tunnel --url http://localhost:8010   # copy the https://…trycloudflare.com URL
+```
+
+Create a project at wokwi.com, paste the sketch + `diagram.json`, and set
+`config.h` to the emulation profile: WiFi `Wokwi-GUEST` / empty password,
+`GATEWAY_URL` = the tunnel URL, `USE_TLS 1`, `DHT_TYPE DHT22`. Run it —
+the board appears on the dashboard; click the DHT22 to 35 °C and watch
+the Agent view answer with `set_fan`.
+
+**B — headless (local toolchain).** With `arduino-cli` (ESP32 core + DHT /
+ArduinoJson / ESP32Servo / U8g2 libs) and `wokwi-cli` + token:
+
+```powershell
+scripts\emulate.ps1 -CompileOnly   # verify the sketch builds
+scripts\emulate.ps1                # compile + wokwi-cli smoke run
+```
+
+Free-tier limits: poll-only (push receiver ships but is unreachable until
+hardware or a paid Wokwi plan), TLS runs insecure under the tunnel
+(emulation only), and sensors are click-driven — not deterministically
+replayable like `--speed 60` simulator beats.
+
 ## Get Started — evals
 
 The behavior suite runs the agent against scripted contexts and scores its
@@ -203,4 +237,6 @@ You can also trigger runs from the dashboard's **Evals** view or the API
 M1–M6 complete: gateway, simulator, agent loop, eval suite, WS bus,
 frontend SPA — **96 tests passing**
 (`pytest gateway/tests simulator/tests evals/tests tests -q`).
-M7–M8 remaining: real-hardware swap-in, demo polish.
+Firmware written and compiling clean for `esp32:esp32:esp32`, runnable
+under Wokwi emulation (see above); M7–M8 remaining: real-hardware
+swap-in, demo polish.
