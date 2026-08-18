@@ -1,6 +1,32 @@
+// Copy to config.h (gitignored) and fill in. SPEC §2.6.
+//
+// Two provisioning profiles:
+//   Hardware (LAN):   WIFI_SSID/PASSWORD = your network, GATEWAY_URL =
+//                     "http://<gateway-lan-ip>:8010", USE_TLS 0
+//   Wokwi emulation:  WIFI_SSID "Wokwi-GUEST", WIFI_PASSWORD "",
+//                     GATEWAY_URL = the session's cloudflared URL
+//                     ("https://<random>.trycloudflare.com"), USE_TLS 1
 #define WIFI_SSID      "your-ssid"
 #define WIFI_PASSWORD  "your-password"
-#define GATEWAY_URL    "http://192.168.1.50:8000"
+#define GATEWAY_URL    "http://192.168.1.50:8010"
 #define DEVICE_TOKEN   "change-me"
 #define DEVICE_ID      "esp32-01"
+
+// 1 = HTTPS with WiFiClientSecure (setInsecure — EMULATION ONLY, the
+// tunnel terminates TLS; hardware on LAN uses plain HTTP per SPEC §2.6).
+#define USE_TLS        0
+
+// DHT11 on the kit, DHT22 under Wokwi (the emulator has no DHT11 part;
+// the DHT library covers both — this constant is the whole difference).
+#define DHT_TYPE       DHT11
+
+// Cadence (seconds). 300 per SPEC; shorten for demos/emulation.
+#define HEARTBEAT_S    300
+#define POLL_MS        2000
+
+// LDR: dark below this raw ADC count (bench-calibrate per SPEC §2 notes).
 #define LIGHT_DARK_THRESHOLD 200
+
+// Offline watchdog: no successful gateway contact for this long → safe
+// state (fan off, LED amber, OLED "OFFLINE"). SPEC §11.
+#define OFFLINE_AFTER_S 60

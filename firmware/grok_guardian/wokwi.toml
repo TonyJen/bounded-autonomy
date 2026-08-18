@@ -1,0 +1,7 @@
+# wokwi-cli configuration: run the locally compiled firmware headless.
+# Build first (see scripts/emulate.ps1):
+#   arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir build .
+[wokwi]
+version = 1
+firmware = "build/grok_guardian.ino.bin"
+elf = "build/grok_guardian.ino.elf"
