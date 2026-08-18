@@ -14,3 +14,4 @@ logs-*.log
 # firmware build artifacts
 firmware/grok_guardian/build/
 firmware/tests/build/
+firmware_host_tests.exe

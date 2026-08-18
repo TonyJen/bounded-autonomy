@@ -32,6 +32,9 @@ if (-not (Test-Path (Join-Path $aj "ArduinoJson.h"))) {
 $out = Join-Path $here "build"
 New-Item -ItemType Directory -Force $out | Out-Null
 $exe = Join-Path $out "host_tests.exe"
+# Also place a copy at the repo root so the binary is easy to find and
+# run from any directory after the build.
+$repoExe = Join-Path $here "..\..\firmware_host_tests.exe"
 
 $sources = @(
   (Join-Path $here "test_host.cpp"),
@@ -52,6 +55,9 @@ $args_ = @("-std=c++17", "-O1", "-w",
 Write-Host "compiler: $cxx"
 & $cmd[0] @($cmd[1..($cmd.Count-1)]) @args_
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Copy-Item $exe $repoExe -Force
+Write-Host "binary: $repoExe"
 
 & $exe
 exit $LASTEXITCODE
