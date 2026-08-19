@@ -14,6 +14,10 @@ in a room, with questions.
    demo gods object.
 3. **[anticipated-questions.md](anticipated-questions.md)** — 18 committee
    questions with prepared 45–90 second answers, hardest first.
+4. **[the-defense-scene.md](the-defense-scene.md)** — the defense as a
+   scene: a five-expert mock panel (controls, security, ML, industry,
+   chair) with cross-fire, follow-ups, and model answers. Rehearse aloud
+   against it.
 
 ## Run of show
 

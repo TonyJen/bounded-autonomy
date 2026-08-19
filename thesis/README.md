@@ -28,6 +28,7 @@ The thesis concludes with its defense — the public presentation of the work:
 - [Slide deck with talk track](defense/slides.md) — 18 slides, 15 minutes
 - [Live demo runbook](defense/demo-script.md) — with failure contingencies
 - [Anticipated committee questions](defense/anticipated-questions.md) — 18 Q&As
+- [The defense scene](defense/the-defense-scene.md) — a five-expert mock panel for rehearsal
 
 ## Source of truth
 
