@@ -16,7 +16,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$fw = Join-Path $PSScriptRoot "..\firmware\grok_guardian"
+$fw = Join-Path $PSScriptRoot "..\firmware\bounded_autonomy"
 
 function Find-Tool([string]$name, [string]$envVar, [string[]]$fallbacks) {
   if ($envVar -and (Test-Path $envVar)) { return $envVar }

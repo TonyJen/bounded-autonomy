@@ -16,7 +16,7 @@ static U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(
     U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 static Servo servo;
-static ActuatorState st = {false, 0, 0, 0, 0, false, {"GrokGuardian", "boot"}};
+static ActuatorState st = {false, 0, 0, 0, 0, false, {"Bounded Autonomy", "boot"}};
 
 static void led(uint8_t r, uint8_t g, uint8_t b) {
   st.led_r = r; st.led_g = g; st.led_b = b;

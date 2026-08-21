@@ -390,7 +390,7 @@ ablations are a flag away if a committee wants them.
 Every number in this chapter can be regenerated from the repository:
 
 ```powershell
-cd D:\Projects\GrokGuardian
+cd Bounded Autonomy   # your clone directory
 .venv\Scripts\python -m pytest gateway/tests simulator/tests evals/tests tests -q   # 96 passed
 .venv\Scripts\python -m evals.runner --mode mock                                        # 19/19
 .venv\Scripts\python -m evals.runner --mode mock --suite adversarial                    # 3/3

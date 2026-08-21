@@ -1,4 +1,4 @@
-# Grok Guardian
+# Bounded Autonomy
 
 **An LLM in the embedded control loop.**
 
@@ -76,7 +76,7 @@ port — use **8010** (Docker often claims 8000/8002).
 **1. Environment**
 
 ```powershell
-cd D:\Projects\GrokGuardian
+cd Bounded Autonomy   # your clone directory
 python -m venv .venv
 .venv\Scripts\pip install -r gateway\requirements.txt
 ```
@@ -133,7 +133,7 @@ No `frontend/dist`? The gateway runs as a pure API — nothing breaks.
 ## Get Started — firmware (emulated, no hardware)
 
 The real Arduino firmware lives in
-[firmware/grok_guardian/](firmware/grok_guardian/) and runs under the
+[firmware/bounded_autonomy/](firmware/bounded_autonomy/) and runs under the
 [Wokwi](https://wokwi.com) ESP-32 emulator — actual C++ talking the SPEC
 protocol to your gateway, no kit required. Two profiles:
 

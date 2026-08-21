@@ -20,7 +20,7 @@ paragraph goes in the talk track.
 
 ## Slide 1 — Title (0:00–0:30)
 
-**Grok Guardian: An LLM in the Embedded Control Loop**
+**Bounded Autonomy: An LLM in the Embedded Control Loop**
 Tony Jen · Senior Thesis · August 2026
 
 > **Talk track:** "Embedded systems loop over physics; LLM agents loop

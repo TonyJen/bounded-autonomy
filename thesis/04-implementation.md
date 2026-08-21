@@ -14,10 +14,10 @@ safety claims credible (§4.6).
 | `simulator/` | Python (stdlib HTTP server + physics model) | 696 | virtual ESP-32 with scripted scenarios |
 | `evals/` + `tests/` | Python, custom runner + judge | 1,345 | behavior suites, scoring, gates, calibration |
 | `frontend/` | React 19 + TypeScript + Vite | 1,716 | Room / Device / Agent / Evals views |
-| `firmware/` | Arduino (ESP-32) | stub (`config.h.example`) | M7 hardware swap-in |
+| `firmware/` | Arduino / C++ (ESP-32) | 1,058 | device firmware + host test suite |
 
-\* Application and test code together, counted 2026-08-17; of the ~5,550
-total lines, ~2,150 are tests. The size distribution is itself an
+\* Application and test code together, counted 2026-08-17; of the ~6,600
+total lines, ~2,700 are tests. The size distribution is itself an
 argument: the *trusted* core — gateway minus API plumbing — is small
 enough to audit, and the guardrail module in particular is 112 lines
 including schemas.
@@ -365,7 +365,7 @@ For the reader approaching the code cold, the tree maps onto Chapter 3's
 tiers with no surprises:
 
 ```
-├── firmware/grok_guardian/   # Arduino sketch (M7 stub: config.h.example)
+├── firmware/bounded_autonomy/# Arduino sketch (host-tested, Wokwi-ready)
 ├── gateway/                  # FastAPI app: the trusted tier (M1–M5)
 │   ├── agent.py              #   cycle, context, client, fallback
 │   ├── tools.py              #   tool schemas + guardrails (the wall)
@@ -373,7 +373,7 @@ tiers with no surprises:
 │   ├── db.py  events.py      #   schema, WebSocket bus
 │   ├── app.py  main.py       #   routes, uvicorn entrypoint
 │   ├── auth.py  config.py    #   device token, env settings
-│   └── tests/                #   45 tests
+│   └── tests/                #   50 tests
 ├── simulator/                # virtual ESP-32 + physics (M1)
 │   ├── device.py  physics.py #   device loop, RoomModel
 │   ├── scenarios/            #   heat_spike, night_intruder, …
@@ -383,7 +383,7 @@ tiers with no surprises:
 │   ├── mock_grok.py          #   deterministic + broken clients
 │   ├── judge.py  calibration/#   LLM judge + human labels
 │   ├── gen_cases.py  results/#   synthetic cases, run JSONs
-│   └── tests/                #   (with tests/, 26 tests)
+│   └── tests/                #   (with tests/, 29 tests)
 ├── frontend/                 # React SPA: Room/Device/Agent/Evals (M6)
 ├── scripts/install_hooks.ps1 # the pre-commit gate
 ├── docs/                     # PLAN, SPEC, GUIDE, plans

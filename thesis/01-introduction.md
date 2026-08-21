@@ -28,7 +28,7 @@ instruction smuggled into its input, time out mid-decision, or cost money
 per thought. The two loops are mirror images: one is safe because it is
 simple, the other is useful because it is not.
 
-This thesis joins the loops. Grok Guardian is a room guardian: an ESP-32
+This thesis joins the loops. Bounded Autonomy is a room guardian: an ESP-32
 microcontroller — or its software twin, a physics simulator — senses
 temperature, humidity, motion, and light; a Grok large language model
 decides what the room should do about it; actuators — a fan, a vent

@@ -7,7 +7,7 @@ stage of a physical control loop safely **if and only if** prediction is
 separated from actuation by a deterministic guardrail layer the model
 cannot influence, with a non-LLM fallback behind it.
 
-Grok Guardian demonstrates the claim constructively, and the demonstration
+Bounded Autonomy demonstrates the claim constructively, and the demonstration
 survives its own adversaries. The three-tier architecture keeps the model
 stateless, replaceable, and untrusted. The sanitization boundary destroys
 injected instructions by type coercion before the model sees them. The

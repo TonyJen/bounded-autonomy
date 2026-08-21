@@ -8,7 +8,7 @@ identically in rehearsal and performance.
 ## Pre-flight (30 min before)
 
 ```powershell
-cd D:\Projects\GrokGuardian
+cd Bounded Autonomy   # your clone directory
 .venv\Scripts\pip install -r gateway\requirements.txt   # sanity
 .venv\Scripts\python -m pytest gateway/tests simulator/tests evals/tests tests -q
 ```

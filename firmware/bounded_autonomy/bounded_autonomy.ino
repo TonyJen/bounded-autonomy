@@ -1,4 +1,4 @@
-// grok_guardian.ino — main loop. SENSE → report → ACT, nothing more:
+// bounded_autonomy.ino — main loop. SENSE → report → ACT, nothing more:
 // the device cannot parse a prompt and holds no cloud key (thesis §3.1).
 //
 // Cadence: heartbeat every HEARTBEAT_S, events immediately, command poll

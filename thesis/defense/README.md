@@ -1,7 +1,7 @@
 # Thesis Defense
 
 The defense is the final chapter of the thesis — the public presentation
-of Grok Guardian, ending the work the way a Princeton senior thesis ends:
+of Bounded Autonomy, ending the work the way a Princeton senior thesis ends:
 in a room, with questions.
 
 ## Contents

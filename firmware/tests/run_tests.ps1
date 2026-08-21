@@ -8,7 +8,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
-$fw = Join-Path $here "..\grok_guardian"
+$fw = Join-Path $here "..\bounded_autonomy"
 
 $cxx = $null
 foreach ($candidate in @($env:CXX, "zig", "g++", "clang++")) {

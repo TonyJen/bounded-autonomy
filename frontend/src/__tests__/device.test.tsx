@@ -83,7 +83,7 @@ const BASE: DeviceState = {
   online: true,
   sensors: { temp_c: 24.5, humidity_pct: 41, light: 612, motion: false },
   actuators: { fan: false, servo_deg: 0, led: { r: 0, g: 0, b: 0 },
-               buzzer: false, oled: ['GrokGuardian', 'idle'] },
+               buzzer: false, oled: ['Bounded Autonomy', 'idle'] },
   buzzerUntil: 0,
 }
 
@@ -96,7 +96,7 @@ function renderDevice(overrides: Partial<DeviceState> = {}) {
 
 test('renders oled lines and sensor readouts', () => {
   renderDevice()
-  expect(screen.getByTestId('oled-line1').textContent).toBe('GrokGuardian')
+  expect(screen.getByTestId('oled-line1').textContent).toBe('Bounded Autonomy')
   expect(screen.getByTestId('oled-line2').textContent).toBe('idle')
   expect(screen.getByText(/24\.5/)).toBeTruthy()
   expect(screen.getByText(/612/)).toBeTruthy()
@@ -197,7 +197,7 @@ vi.mock('../lib/ws', () => ({ useGatewayWS: () => ({ connected: true }) }))
 
 test('device view renders illustration and sim controls', async () => {
   render(<DeviceView />)
-  expect(await screen.findByText(/GrokGuardian/)).toBeTruthy()
+  expect(await screen.findByText(/Bounded Autonomy/)).toBeTruthy()
   expect(screen.getByRole('button', { name: /heat spike/i })).toBeTruthy()
   expect(screen.getByRole('button', { name: /motion/i })).toBeTruthy()
 })

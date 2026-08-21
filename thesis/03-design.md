@@ -1,6 +1,6 @@
 # Chapter 3 — System Design
 
-This chapter presents the architecture of Grok Guardian as a series of
+This chapter presents the architecture of Bounded Autonomy as a series of
 deliberate boundary decisions: what each tier is forbidden to know (§3.1),
 what a single decision cycle looks like (§3.2), how input is sanitized at
 the trust boundary (§3.3), what the guardrail layer enforces (§3.4), what
@@ -10,7 +10,7 @@ its adversaries (§3.7).
 
 ## 3.1 The three tiers
 
-Grok Guardian splits the two loops of §1.1 at their natural joint:
+Bounded Autonomy splits the two loops of §1.1 at their natural joint:
 
 ```
   PHYSICAL WORLD (or simulator)                GATEWAY                        CLOUD

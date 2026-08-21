@@ -1,4 +1,4 @@
-// Host unit tests for the Grok Guardian firmware modules, compiled with a
+// Host unit tests for the Bounded Autonomy firmware modules, compiled with a
 // desktop C++ compiler against the shim in shim/. These characterize the
 // firmware's contract with the gateway: snapshot shape, event triggers,
 // command clamps, ack behavior, poll cursor.

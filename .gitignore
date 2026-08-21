@@ -12,7 +12,7 @@ frontend/tsconfig.tsbuildinfo
 logs-*.log
 
 # firmware build artifacts
-firmware/grok_guardian/build/
+firmware/bounded_autonomy/build/
 firmware/tests/build/
 firmware_host_tests.exe
 

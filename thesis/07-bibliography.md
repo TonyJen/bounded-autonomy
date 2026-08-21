@@ -82,7 +82,7 @@ functions of text to functions of state (§5.3.1).
 
 ## Primary sources
 
-[12] Grok Guardian repository — `docs/SPEC.md` (protocols, schemas,
+[12] Bounded Autonomy repository — `docs/SPEC.md` (protocols, schemas,
 guardrails §5, fallback §4.1, acceptance §9), `docs/PLAN.md` (milestones
 M1–M8), `gateway/` (agent, tools, device, memory, events), `simulator/`
 (physics, scenarios, device), `evals/` (runner, cases, judge),

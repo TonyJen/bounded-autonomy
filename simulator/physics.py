@@ -19,7 +19,7 @@ class RoomModel:
         self.servo_deg: int = 0
         self.led: dict = dict(LED_COLORS["off"])
         self.buzzer: bool = False
-        self.oled: list[str] = ["GrokGuardian", "sim"]
+        self.oled: list[str] = ["Bounded Autonomy", "sim"]
         self._elapsed = 0.0
         self._scenario: dict | None = None
         self._fired: set[int] = set()

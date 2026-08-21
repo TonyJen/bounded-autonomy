@@ -1,4 +1,4 @@
-# Grok Guardian: An LLM in the Embedded Control Loop
+# Bounded Autonomy: An LLM in the Embedded Control Loop
 
 **Tony Jen**
 
@@ -23,7 +23,7 @@ decision is not a wrong sentence but a wrong actuator: a motor
 short-cycled to death, a siren fired at three in the morning, a room left
 hot while a model retries a malformed call. This thesis asks whether an
 LLM can occupy the decision stage of a classical embedded control loop
-**safely**, and answers the question by construction: Grok Guardian, a
+**safely**, and answers the question by construction: Bounded Autonomy, a
 room guardian built on the ELEGOO ESP-32 Super Starter Kit, in which a
 Grok model decides — through OpenAI-compatible function calling — when to
 spin a fan, move a vent servo, light an LED, display text, or sound a

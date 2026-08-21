@@ -46,7 +46,7 @@ export default function DeviceIllustration({ sensors, actuators, buzzerActive, h
                   fill="none" stroke="var(--color-cardborder)" strokeWidth="2" />
         ))}
         <text x="200" y="66" textAnchor="middle" fontSize="12"
-              fill="var(--color-muted)">GrokGuardian · sim-01</text>
+              fill="var(--color-muted)">Bounded Autonomy · sim-01</text>
 
         {/* OLED */}
         <g key={actuators.oled.join('|')} className="animate-oled-flicker">

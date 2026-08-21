@@ -19,8 +19,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <header className="flex items-center gap-6 px-6 py-4 border-b border-cardborder">
-        <img src="/icon.svg" alt="Grok Guardian logo" className="w-8 h-8" />
-        <span className="text-lg font-semibold">Grok Guardian</span>
+        <img src="/icon.svg" alt="Bounded Autonomy logo" className="w-8 h-8" />
+        <span className="text-lg font-semibold">Bounded Autonomy</span>
         <nav className="flex gap-2">
           {TABS.map((t) => (
             <button key={t} onClick={() => setTab(t)}
@@ -40,7 +40,7 @@ export default function App() {
       <footer className="flex justify-between items-center px-6 py-2 border-t border-cardborder text-muted text-sm">
         <span className="flex items-center gap-2">
           <img src="/icon.svg" alt="" className="w-4 h-4" />
-          Grok Guardian
+          Bounded Autonomy
         </span>
         <Clock />
       </footer>

@@ -1,6 +1,6 @@
-# Grok Guardian — Senior Thesis
+# Bounded Autonomy — Senior Thesis
 
-A Princeton-style senior thesis on the Grok Guardian project:
+A Princeton-style senior thesis on the Bounded Autonomy project:
 **an LLM in the embedded control loop.**
 
 ## Reading order

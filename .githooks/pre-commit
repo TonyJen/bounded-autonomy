@@ -1,5 +1,5 @@
 #!/bin/sh
-# GrokGuardian pre-commit gate: tests + deterministic mock-mode evals.
+# Bounded Autonomy pre-commit gate: tests + deterministic mock-mode evals.
 # Install once with: scripts/install_hooks.ps1  (sets core.hooksPath)
 set -e
 

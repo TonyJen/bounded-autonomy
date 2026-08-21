@@ -48,7 +48,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         memory.prune_old_snapshots()
         yield
 
-    app = FastAPI(title="Grok Guardian Gateway", lifespan=lifespan)
+    app = FastAPI(title="Bounded Autonomy Gateway", lifespan=lifespan)
     auth = make_device_auth(settings.device_token)
 
     @app.get("/health")
