@@ -15,3 +15,6 @@ logs-*.log
 firmware/grok_guardian/build/
 firmware/tests/build/
 firmware_host_tests.exe
+
+# generated analysis docs (kept local)
+docs/*.html

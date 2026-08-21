@@ -2,16 +2,11 @@
 
 **Tony Jen**
 
-A Senior Thesis submitted in partial fulfillment of the requirements
-for the degree of Bachelor of Science in Engineering
-
-Department of Computer Science
-Princeton University
+A portfolio thesis, written in the style of a Princeton senior thesis —
+structure, rigor, and defense included — as a self-directed study in
+putting a large language model inside a physical control loop.
 
 August 2026
-
-*Adviser: [Adviser name]*
-*Second reader: [Reader name]*
 
 ---
 
@@ -115,6 +110,6 @@ This thesis is the answer.
 
 ## Declaration
 
-This thesis represents my own work in accordance with University
-regulations. All third-party libraries are identified where used; all
-results are reproducible from the repository this document ships with.
+This thesis documents my own project work. All third-party libraries are
+identified where used; all results are reproducible from the repository
+this document ships with.
