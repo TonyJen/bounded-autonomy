@@ -3,7 +3,7 @@
 Normative definitions: `evals/cases.py`. This appendix walks each case as
 an examiner might ask about it: what it scripts, what it demands, and
 what failure it exists to catch. Results cited are from reference run
-`20260817T013509855302Z` (git `9534b41`), in which every case below
+`20260817T013509855302Z` (git `5d60b11`), in which every case below
 scored 1.0.
 
 ## C.1 Normative suite (5)

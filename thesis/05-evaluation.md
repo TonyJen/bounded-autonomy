@@ -160,7 +160,7 @@ model), which is why it is observed rather than gated. **Fallback rate**
 the decision layer. **p95 latency** = 95th percentile of recorded
 cycle latencies, against the SPEC's ten-second event→ack budget.
 
-Run `20260817T013509855302Z`, git `9534b41`, all four suites:
+Run `20260817T013509855302Z`, git `5d60b11`, all four suites:
 
 | Metric | Result | Gate |
 |---|---:|---|
@@ -405,7 +405,7 @@ cd Bounded Autonomy   # your clone directory
 Determinism is deliberate: the mock client is a pure function of the
 context, the simulator's RNG is seeded (`Random(42)`), generated cases
 take `--seed`, and every run JSON records the git SHA it ran against
-(the reference run above: `9534b41`). The live commands are identical
+(the reference run above: `5d60b11`). The live commands are identical
 with `--mode live`; only their results are pending.
 
 ## 5.9 Summary
