@@ -135,8 +135,7 @@ No `frontend/dist`? The gateway runs as a pure API — nothing breaks.
 The real Arduino firmware lives in
 [firmware/grok_guardian/](firmware/grok_guardian/) and runs under the
 [Wokwi](https://wokwi.com) ESP-32 emulator — actual C++ talking the SPEC
-protocol to your gateway, no kit required. Two profiles (details in
-[docs/GUIDE.md](docs/GUIDE.md) §The emulated device):
+protocol to your gateway, no kit required. Two profiles:
 
 **A — browser demo (zero install).** Expose the gateway, then paste and
 run:
@@ -221,16 +220,12 @@ You can also trigger runs from the dashboard's **Evals** view or the API
   runs pytest + mock-mode evals on every commit.
 - **TDD and typed Python ≥ 3.12** — failing test first, async for I/O.
   Commit prefixes: `feat(gateway)`, `feat(sim)`, `feat(evals)`, `fix(...)`, `test:`.
-- **Adding things?** Recipes for new tools, scenarios, and eval cases are in
-  [docs/GUIDE.md](docs/GUIDE.md) §Common tasks.
 
 ## Docs
 
-- [docs/PLAN.md](docs/PLAN.md) — design + milestones
-- [docs/SPEC.md](docs/SPEC.md) — protocols, schemas, guardrails, acceptance criteria
-- [docs/GUIDE.md](docs/GUIDE.md) — new-user + developer guide
-- [docs/plans/](docs/plans/) — implementation plans
 - [thesis/](thesis/) — Princeton-style senior thesis + defense package
+  (the design docs, protocol spec, and developer guide are kept local
+  in `docs/` and are not part of the published repo)
 
 ## Status
 
