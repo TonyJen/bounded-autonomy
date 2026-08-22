@@ -50,7 +50,7 @@ def generate_cases(count: int, seed: int = 42) -> list[dict]:
             "humidity_pct": round(rng.uniform(10.0, 90.0), 1),
             "light": rng.randint(0, 4095),
             "motion": rng.randint(0, 1),
-            "actuators": {"fan_on": fan_on},
+            "actuators": {"fan": fan_on},  # wire key: devices report actuators.fan
         }
         expected = expected_actions(snapshot, fan_on)
         expected_names = [a["name"] for a in expected]

@@ -22,7 +22,7 @@ header; the gateway is the only component holding the xAI key.
   "seq": 42,
   "uptime_s": 3600,
   "sensors":  {"temp_c": 35.0, "humidity_pct": 40.0, "light": 600, "motion": 1},
-  "actuators": {"fan_on": false, "servo_deg": 0, "led": "off"}
+  "actuators": {"fan": false, "servo_deg": 0, "led": {"r": 0, "g": 0, "b": 0}}
 }
 ```
 

@@ -14,7 +14,7 @@ from gateway.auth import make_device_auth
 from gateway.config import Settings
 from gateway.device import DeviceRegistry
 from gateway.events import ConnectionManager
-from gateway.memory import Memory
+from gateway.memory import COMMAND_TTL_S, Memory
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         return {"commands": [
             {"id": r["id"], "cmd_id": r["cmd_id"], "action": r["action"],
              "args": json.loads(r["args_json"]),
-             "issued_at": r["ts"], "ttl_s": 30}
+             "issued_at": r["ts"], "ttl_s": COMMAND_TTL_S}
             for r in rows]}
 
     @app.post("/commands/{cmd_id}/ack", dependencies=[Depends(auth)])

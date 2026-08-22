@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from gateway.memory import Memory
+from gateway.memory import COMMAND_TTL_S, Memory
 
 
 class DeviceRegistry:
@@ -46,7 +46,7 @@ class DeviceRegistry:
             envelope = {
                 "cmd_id": cmd_id,
                 "issued_at": datetime.now(timezone.utc).isoformat(),
-                "ttl_s": 30,
+                "ttl_s": COMMAND_TTL_S,
                 "action": action,
                 "args": args,
             }

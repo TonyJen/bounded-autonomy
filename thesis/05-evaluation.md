@@ -223,8 +223,9 @@ is stopped.
 **Boundary, 7/7.** The threshold pairs behaved as specified: `temp_at_30`
 sat still while `temp_just_above_30` fanned on (30.0 vs 30.1 °C);
 `temp_at_26` held while `temp_just_below_26_fan_on` shut the fan off —
-and only because the case seeded `actuators.fan_on: true`, matching the
-fallback's hysteresis rule that a stopped fan is never commanded off.
+and only because the case seeded `actuators.fan: true` (the key the
+devices actually report), matching the fallback's hysteresis rule that a
+stopped fan is never commanded off.
 The light pair resolved 200 counts (not night) against 199 counts
 (night).
 `fan_hysteresis` — the stateful probe — ran four snapshots hovering

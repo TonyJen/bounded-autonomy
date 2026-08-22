@@ -17,7 +17,7 @@ class MockGrokClient:
         ctx = json.loads(messages[-1]["content"])
         s = ctx["sensors"]
         actuators = ctx.get("actuators") or {}
-        fan_on = bool(actuators.get("fan_on"))
+        fan_on = bool(actuators.get("fan"))  # wire key: devices report actuators.fan
         calls = []
 
         def tc(name, args):

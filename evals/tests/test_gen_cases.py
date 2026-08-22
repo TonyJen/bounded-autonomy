@@ -21,8 +21,7 @@ def test_labels_agree_with_fallback_rules():
     agent = Agent(memory=None, tools=None, client=None)
     for case in generate_cases(100, seed=123):
         ctx = case["context"]
-        agent._fan_on = ctx["actuators"]["fan_on"]
-        fb = agent.fallback(ctx)
+        fb = agent.fallback(ctx)  # fallback reads reported actuators.fan from ctx
         fb_names = [a["name"] for a in fb]
         for req in case["required"]:
             assert req in fb_names, (case["id"], req, fb_names)

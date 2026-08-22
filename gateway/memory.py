@@ -2,6 +2,11 @@ import json
 from datetime import datetime, timedelta, timezone
 from gateway.db import get_conn
 
+# Seconds a queued/pushed command stays valid. Minted into every command
+# envelope (device.py, app.py) and enforced here, at the chokepoint the
+# firmware's net.h assigns expiry to: "the gateway's queue owns expiry".
+COMMAND_TTL_S = 30
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -81,8 +86,19 @@ class Memory:
             conn.close()
 
     def commands_after(self, device_id: str, after_id: int) -> list[dict]:
+        # Enforce the advertised ttl_s before serving: anything older is
+        # marked 'expired' and never reaches the device. 'pushed' commands
+        # past the TTL expire too — the device either already executed them
+        # (ack lost) or never will, and re-serving either way is wrong.
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(seconds=COMMAND_TTL_S)).isoformat()
         conn = get_conn(self.db_path)
         try:
+            conn.execute(
+                "UPDATE commands SET status='expired' WHERE device_id=?"
+                " AND status IN ('queued','pushed') AND ts < ?",
+                (device_id, cutoff))
+            conn.commit()
             rows = conn.execute(
                 "SELECT * FROM commands WHERE device_id=? AND id>?"
                 " AND status IN ('queued','pushed') ORDER BY id",

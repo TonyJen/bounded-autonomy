@@ -214,6 +214,35 @@ async def test_malformed_sensor_string_sanitized(tmp_path):
     assert ctx["sensors"]["humidity_pct"] == 40.0
 
 
+def test_fallback_fan_off_uses_reported_actuator_state(tmp_path):
+    """Hysteresis must key on the device-REPORTED fan state riding in the
+    snapshot (actuators.fan), not the agent's in-memory belief: a gateway
+    restart wipes that belief while the physical fan keeps running."""
+    agent, _ = make_agent(tmp_path, StubClient(fail=True))
+    snap = {**SNAP, "temp_c": 25.0, "actuators": {"fan": True}}
+    calls = agent.fallback(snap)
+    assert {"name": "set_fan", "args": {"on": False}} in calls
+
+
+def test_fallback_no_fan_off_when_device_reports_fan_off(tmp_path):
+    """A fan the device reports as off must never get an off command —
+    regardless of what the agent believes it previously dispatched."""
+    agent, _ = make_agent(tmp_path, StubClient(fail=True))
+    snap = {**SNAP, "temp_c": 25.0, "actuators": {"fan": False}}
+    assert [c for c in agent.fallback(snap) if c["name"] == "set_fan"] == []
+
+
+def test_fallback_reads_actuators_from_raw_json(tmp_path):
+    """Snapshots served from the DB carry actuators inside raw_json, not
+    inline — the fallback must find the reported fan state there too."""
+    import json as _json
+    agent, _ = make_agent(tmp_path, StubClient(fail=True))
+    raw = _json.dumps({"actuators": {"fan": True}})
+    snap = {**SNAP, "temp_c": 25.0, "raw_json": raw}
+    calls = agent.fallback(snap)
+    assert {"name": "set_fan", "args": {"on": False}} in calls
+
+
 @pytest.mark.asyncio
 async def test_fallback_survives_malformed_sensor_string(tmp_path):
     """Fallback rules must not crash (TypeError) or act on a dirty sensor

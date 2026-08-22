@@ -113,6 +113,20 @@ class GrokClient:
             raise GrokError(f"{type(e).__name__}: {e}") from e
 
 
+def _snapshot_actuators(snapshot: dict) -> dict | None:
+    """Device-reported actuator states: inline (sim/evals payloads) or
+    inside raw_json (snapshots served back from the DB). This is the only
+    fan/LED/servo state the fallback rules may trust — the agent's own
+    dispatch history is intent, not state."""
+    actuators = snapshot.get("actuators")
+    if actuators is None and snapshot.get("raw_json"):
+        try:
+            actuators = json.loads(snapshot["raw_json"]).get("actuators")
+        except (ValueError, TypeError):
+            actuators = None
+    return actuators
+
+
 class Agent:
     # Class-level defaults so Agent.__new__ (tests) stays usable; __init__
     # overrides per instance. `sanitize=False` exists only for eval
@@ -129,18 +143,12 @@ class Agent:
         if system_prompt is not None:
             self.system_prompt = system_prompt
         self._last_motion_ts: float | None = None
-        self._fan_on = False
 
     def build_context(self, snapshot: dict) -> list[dict]:
         # SPEC §4 step 2: current snapshot + actuator states + last-10
         # decisions + time. Actuators ride in the sense payload, stored as
         # raw_json on the snapshot row (or carried inline in tests/evals).
-        actuators = snapshot.get("actuators")
-        if actuators is None and snapshot.get("raw_json"):
-            try:
-                actuators = json.loads(snapshot["raw_json"]).get("actuators")
-            except (ValueError, TypeError):
-                actuators = None
+        actuators = _snapshot_actuators(snapshot)
         user = {
             "trigger": snapshot.get("trigger"),
             "sensors": {
@@ -180,8 +188,6 @@ class Agent:
                 device_id, name, args, {"motion_ts": self._last_motion_ts})
         except (GuardrailError, ValueError, TypeError) as e:
             return {"ok": False, "error": str(e)}
-        if name == "set_fan" and result.get("ok"):
-            self._fan_on = bool(args.get("on"))
         return result
 
     async def run_cycle(self, snapshot: dict) -> dict:
@@ -240,8 +246,14 @@ class Agent:
             return actions
         if temp > 30:
             actions.append({"name": "set_fan", "args": {"on": True}})
-        elif temp < 26 and self._fan_on:  # SPEC §4.1: only flip if fan on
-            actions.append({"name": "set_fan", "args": {"on": False}})
+        elif temp < 26:
+            # SPEC §4.1: only flip if the DEVICE reports the fan on. Intent
+            # (what this agent previously dispatched) is not state — it goes
+            # stale on restart, on lost acks, and on commands queued but
+            # never applied.
+            reported = _snapshot_actuators(snapshot) or {}
+            if reported.get("fan"):
+                actions.append({"name": "set_fan", "args": {"on": False}})
         if snapshot.get("motion") and light is not None and light < 200:
             actions.append({"name": "set_led", "args": {"color": "white"}})
         return actions
