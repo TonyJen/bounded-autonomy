@@ -5,7 +5,7 @@
 > EMBEDDED:  SENSE → PROCESS → ACT          (in a world of physics)
 > LLM AGENT: CONTEXT → PREDICT → TOOL CALL  (in a world of tokens)
 
-A Room Guardian built for the ELEGOO ESP-32 Super Starter Kit. The ESP-32 (or
+A room-monitoring device built for the ELEGOO ESP-32 Super Starter Kit. The ESP-32 (or
 its software twin, the simulator) senses the physical world and actuates it;
 a local FastAPI gateway assembles context and dispatches tool calls; a Grok
 LLM decides what should happen via function calling.
@@ -89,7 +89,7 @@ Create `.env` in the repo root (gitignored — the only place secrets live):
 | `XAI_BASE_URL` | xAI API base | `https://api.x.ai/v1` |
 | `XAI_MODEL` | model name | `grok-4.5` |
 | `DEVICE_TOKEN` | shared secret; devices send it as `X-Device-Token` | `dev-token` |
-| `GUARDIAN_DB` | SQLite path | `gateway/guardian.db` |
+| `BOUNDED_AUTONOMY_DB` | SQLite path | `gateway/bounded_autonomy.db` |
 | `GATEWAY_HOST` / `GATEWAY_PORT` | bind address | `0.0.0.0` / `8000` |
 
 **2. Run it** (three terminals)

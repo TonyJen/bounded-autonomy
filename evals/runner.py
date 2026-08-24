@@ -328,7 +328,7 @@ def run_evals(db_path: str, mode: str = "mock",
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["mock", "live"], default="mock")
-    parser.add_argument("--db", default="gateway/guardian.db")
+    parser.add_argument("--db", default="gateway/bounded_autonomy.db")
     parser.add_argument("--cases", nargs="*", default=None)
     parser.add_argument("--suite", dest="suites", action="append",
                         default=None,

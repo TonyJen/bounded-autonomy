@@ -18,7 +18,7 @@ void setup() {
   sensors_init();
   actuators_init();
   net_init();
-  Serial.println("[gg] boot " DEVICE_ID);
+  Serial.println("[ba] boot " DEVICE_ID);
 }
 
 void loop() {
@@ -33,12 +33,12 @@ void loop() {
   String event = sensors_poll_event();
   if (!event.isEmpty()) {
     if (net_send_sense("event", event.c_str(), sensors_current())) {
-      Serial.println("[gg] event sent: " + event);
+      Serial.println("[ba] event sent: " + event);
     }
   } else if (millis() - last_heartbeat_ms >= (unsigned long)HEARTBEAT_S * 1000) {
     last_heartbeat_ms = millis();
     if (net_send_sense("heartbeat", "periodic", sensors_current())) {
-      Serial.println("[gg] heartbeat ack");
+      Serial.println("[ba] heartbeat ack");
     }
   }
 
@@ -54,9 +54,9 @@ void loop() {
     offline = is_offline;
     if (offline) {
       actuators_safe_state();
-      Serial.println("[gg] gateway lost — safe state");
+      Serial.println("[ba] gateway lost — safe state");
     } else {
-      Serial.println("[gg] gateway contact restored");
+      Serial.println("[ba] gateway contact restored");
     }
   }
 

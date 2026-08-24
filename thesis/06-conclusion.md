@@ -89,7 +89,7 @@ one of the findings.
 Ordered by milestone, then by ambition:
 
 - **M7 — hardware swap-in.** Flash the real ESP-32 (firmware stub exists:
-  `firmware/grok_guardian/config.h.example`), replace the simulator on
+  `firmware/bounded_autonomy/config.h.example`), replace the simulator on
   the unchanged protocol, and bench-verify latency, staleness, and
   reconnect behavior against physical DHT11 noise and real WiFi loss.
   Defense in depth: duplicate the guardrails into firmware (§3.8).

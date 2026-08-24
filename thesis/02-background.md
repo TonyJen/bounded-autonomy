@@ -59,8 +59,8 @@ produced rich machinery for making models *capable*; comparatively little
 machinery exists for bounding what capable models may *touch*. That gap
 is the subject of Chapter 3.
 
-A second inherited idea is **low-temperature determinism**. Grok
-Guardian's model client fixes `temperature: 0.2`, trading generative
+A second inherited idea is **low-temperature determinism**. Bounded
+Autonomy's model client fixes `temperature: 0.2`, trading generative
 variety for decision consistency — a standard move in tool-use settings
 and an important one here, because the evaluation of Chapter 5 is only
 meaningful if the decision function is approximately repeatable.
@@ -208,8 +208,8 @@ engineering and LLM agency collide most instructively. A naive agent
 given the rule "fan on above 30 °C" and a sensor hovering at 29.9,
 30.1, 29.8, 30.2 will toggle the fan four times in as many cycles —
 each decision locally reasonable, the sequence ruinous. The classical fix
-is a *band*: on above 30, off below 26, and hold state in between. Grok
-Guardian encodes the band in three places at once: in the system prompt
+is a *band*: on above 30, off below 26, and hold state in between. Bounded
+Autonomy encodes the band in three places at once: in the system prompt
 (so the model is told), in the fallback rules (so degraded mode honors
 it), and — decisively — in the 30-second anti-short-cycle guardrail
 (so that even an agent determined to chatter physically cannot). The
@@ -252,8 +252,8 @@ each adapted to a control setting.
 
 **Scripted scenarios with expected actions.** CheckList [11] introduced
 behavioral testing for NLP models: capability-directed test cases that
-probe specific behaviors rather than measuring aggregate accuracy. Grok
-Guardian's suites are CheckList for an embodied agent — minimum
+probe specific behaviors rather than measuring aggregate accuracy. Bounded
+Autonomy's suites are CheckList for an embodied agent — minimum
 functionality tests (normative suite), boundary probes (edge cases at
 exactly 30 °C, exactly 200 of 4095 ADC counts), and adversarial attacks —
 scored on *what the agent did*, not what it said. The adaptation runs

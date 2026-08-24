@@ -94,7 +94,7 @@ rolling-hour budget.
 | `XAI_BASE_URL` | xAI API base | `https://api.x.ai/v1` |
 | `XAI_MODEL` | model name | `grok-4.5` |
 | `DEVICE_TOKEN` | device shared secret (`X-Device-Token` header) | `dev-token` |
-| `GUARDIAN_DB` | SQLite path | `gateway/guardian.db` |
+| `BOUNDED_AUTONOMY_DB` | SQLite path | `gateway/bounded_autonomy.db` |
 | `GATEWAY_HOST` / `GATEWAY_PORT` | bind address | `0.0.0.0` / `8000` |
 | `EVAL_RESULTS_DIR` | eval-run persistence | `evals/results` |
 

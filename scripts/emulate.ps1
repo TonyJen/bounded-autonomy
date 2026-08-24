@@ -46,7 +46,7 @@ if ($CompileOnly) { exit 0 }
 $wokwiCli = Find-Tool "wokwi-cli" $env:WOKWI_CLI @()
 
 Write-Host "== headless smoke run ($SmokeSeconds s) =="
-Write-Host "Expect serial markers: '[gg] boot', WiFi connect, '[gg] heartbeat ack'"
+Write-Host "Expect serial markers: '[ba] boot', WiFi connect, '[ba] heartbeat ack'"
 $logPath = Join-Path $fw "build\smoke.log"
 $proc = Start-Process $wokwiCli -ArgumentList "`"$fw`"" -NoNewWindow -PassThru `
   -RedirectStandardOutput $logPath
@@ -54,7 +54,7 @@ Start-Sleep -Seconds $SmokeSeconds
 if (-not $proc.HasExited) { Stop-Process $proc -Force }
 
 $log = Get-Content $logPath -Raw
-$checks = @("[gg] boot", "heartbeat ack")
+$checks = @("[ba] boot", "heartbeat ack")
 $failed = $checks | Where-Object { $log -notmatch [regex]::Escape($_) }
 if ($failed) {
   Write-Host "SMOKE FAILED — missing markers: $($failed -join ', ')"

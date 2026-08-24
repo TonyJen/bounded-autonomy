@@ -125,7 +125,7 @@ Two full run-throughs, from a cold boot of all three terminals, timed:
 
 Record the second run-through — that recording is the total-meltdown
 contingency. After rehearsing, reset state: stop all terminals, delete
-`gateway/guardian.db` if the committee should see a clean history, and
+`gateway/bounded_autonomy.db` if the committee should see a clean history, and
 rebuild nothing — the dashboard's `dist/` persists.
 
 One narrative rule for the whole demo: **name the layer as you touch

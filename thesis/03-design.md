@@ -117,7 +117,7 @@ Walking the cycle through the code (`gateway/agent.py`, `run_cycle`):
 
 Step 5 is what turns a control loop into an *evaluable* control loop:
 every decision the system has ever made is replayable from
-`gateway/guardian.db` (the stored context carries the sanitized
+`gateway/bounded_autonomy.db` (the stored context carries the sanitized
 snapshot), and the `/history` endpoint and dashboard's Agent
 view are thin projections of that table.
 

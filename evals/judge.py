@@ -17,8 +17,8 @@ import re
 import sys
 
 JUDGE_SYSTEM_PROMPT = (
-    "You are a strict evaluator for a room-monitoring device called Grok "
-    "Guardian. The device reads sensors (temperature °C, humidity %, light "
+    "You are a strict evaluator for a room-monitoring device called Bounded "
+    "Autonomy. The device reads sensors (temperature °C, humidity %, light "
     "0-4095, motion) and takes physical actions via tools (set_fan, "
     "set_servo, set_led, buzzer, display_text, log_observation). You grade "
     "the device's FREE-TEXT outputs: log_observation notes and display_text "

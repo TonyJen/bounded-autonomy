@@ -22,7 +22,10 @@ def get_settings() -> Settings:
         xai_base_url=os.getenv("XAI_BASE_URL", "https://api.x.ai/v1"),
         xai_model=os.getenv("XAI_MODEL", "grok-4.5"),
         device_token=os.getenv("DEVICE_TOKEN", "dev-token"),
-        db_path=os.getenv("GUARDIAN_DB", "gateway/guardian.db"),
+        # BOUNDED_AUTONOMY_DB is canonical; GUARDIAN_DB kept as a fallback
+        # for pre-rename local setups.
+        db_path=os.getenv("BOUNDED_AUTONOMY_DB")
+                or os.getenv("GUARDIAN_DB", "gateway/bounded_autonomy.db"),
         host=os.getenv("GATEWAY_HOST", "0.0.0.0"),
         port=int(os.getenv("GATEWAY_PORT", "8000")),
     )

@@ -11,7 +11,7 @@ from gateway.app import create_app
 def test_eval_run_endpoints(tmp_path, monkeypatch):
     db = str(tmp_path / "t.db")
     init_db(db)
-    monkeypatch.setenv("GUARDIAN_DB", db)
+    monkeypatch.setenv("BOUNDED_AUTONOMY_DB", db)
     monkeypatch.setattr("evals.runner.run_evals", lambda **kw: {
         "run_id": "r1", "summary": {"total": 5, "passed": 5, "failed": 0,
                                     "average_score": 1.0},
