@@ -88,7 +88,8 @@ Create `.env` in the repo root (gitignored — the only place secrets live):
 | `XAI_API_KEY` | Grok API key (required for live agent) | — |
 | `XAI_BASE_URL` | xAI API base | `https://api.x.ai/v1` |
 | `XAI_MODEL` | model name | `grok-4.5` |
-| `DEVICE_TOKEN` | shared secret; devices send it as `X-Device-Token` | `dev-token` |
+| `DEVICE_TOKEN` | shared secret; devices send it as `X-Device-Token` | random per boot |
+| `OPERATOR_TOKEN` | required only for **remote** access to dashboard endpoints (`/status`, `/history`, `/sim/*`, `/evals/*`, `/ws`); loopback is always allowed | unset = remote denied |
 | `BOUNDED_AUTONOMY_DB` | SQLite path | `gateway/bounded_autonomy.db` |
 | `GATEWAY_HOST` / `GATEWAY_PORT` | bind address | `0.0.0.0` / `8000` |
 

@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from gateway.auth import make_device_auth
+from gateway.auth import make_device_auth, make_operator_auth
 from gateway.config import Settings
 from gateway.device import DeviceRegistry
 from gateway.events import ConnectionManager
@@ -50,6 +50,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
 
     app = FastAPI(title="Bounded Autonomy Gateway", lifespan=lifespan)
     auth = make_device_auth(settings.device_token)
+    op_auth = make_operator_auth(settings.operator_token)
 
     @app.get("/health")
     async def health():
@@ -101,7 +102,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                                              "args": cmd.get("args")}})
         return {"recorded": True}
 
-    @app.get("/status")
+    @app.get("/status", dependencies=[Depends(op_auth)])
     async def status():
         latest = memory.latest_snapshot() or {}
         raw = latest.get("raw_json")
@@ -115,7 +116,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
             "last_seen": latest.get("ts"),
         }
 
-    @app.get("/history")
+    @app.get("/history", dependencies=[Depends(op_auth)])
     async def history(limit: int = 10):
         return {"snapshots": memory.recent_snapshots(limit),
                 "decisions": memory.recent_decisions(limit)}
@@ -137,11 +138,11 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
             raise HTTPException(status_code=502, detail="device unreachable")
         return {"ok": resp.status_code == 200, "device_status": resp.status_code}
 
-    @app.post("/sim/scenario")
+    @app.post("/sim/scenario", dependencies=[Depends(op_auth)])
     async def sim_scenario(payload: dict):
         return await _forward_to_device("/scenario", payload)
 
-    @app.post("/sim/event")
+    @app.post("/sim/event", dependencies=[Depends(op_auth)])
     async def sim_event(payload: dict):
         return await _forward_to_device("/event", payload)
 
@@ -151,7 +152,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         mode: str = "mock"
         cases: Optional[list] = None
 
-    @app.post("/evals/run")
+    @app.post("/evals/run", dependencies=[Depends(op_auth)])
     async def evals_run(req: EvalRunRequest):
         import uuid as _uuid
         run_id = _uuid.uuid4().hex[:12]
@@ -184,7 +185,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         asyncio.create_task(_job())
         return {"run_id": run_id, "status": "running"}
 
-    @app.get("/evals/run/{run_id}")
+    @app.get("/evals/run/{run_id}", dependencies=[Depends(op_auth)])
     async def evals_run_status(run_id: str):
         from fastapi import HTTPException
         job = EVAL_JOBS.get(run_id)
@@ -192,7 +193,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
             raise HTTPException(status_code=404, detail="run not found")
         return job
 
-    @app.get("/evals/history")
+    @app.get("/evals/history", dependencies=[Depends(op_auth)])
     async def evals_history(limit: int = 10):
         import json as _json
         from gateway.db import get_conn
@@ -209,7 +210,7 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         finally:
             conn.close()
 
-    @app.get("/evals/record/{run_id}")
+    @app.get("/evals/record/{run_id}", dependencies=[Depends(op_auth)])
     async def evals_record(run_id: str):
         """Full stored run record (per-case correctness + performance) for
         drill-down from the history list. Reads the durable JSON artifact,
@@ -230,6 +231,15 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         if events is None:
             await ws.close(code=1008)
             return
+        host = ws.client.host if ws.client else ""
+        from gateway.auth import _LOCAL_HOSTS
+        if host not in _LOCAL_HOSTS:
+            presented = ws.query_params.get("token", "")
+            import hmac as _hmac
+            if not (settings.operator_token and _hmac.compare_digest(
+                    presented, settings.operator_token)):
+                await ws.close(code=1008)
+                return
         await events.connect(ws)
         try:
             while True:

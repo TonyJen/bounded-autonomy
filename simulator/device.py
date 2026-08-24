@@ -253,7 +253,11 @@ class SimDevice:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", default="http://localhost:8000")
-    parser.add_argument("--token", default="dev-token")
+    parser.add_argument("--token",
+                        default=os.environ.get("DEVICE_TOKEN", ""),
+                        help="device auth token (default: $DEVICE_TOKEN; "
+                             "required — the gateway no longer ships a "
+                             "public default)")
     parser.add_argument("--device-id", default=None,
                         help="device identifier sent to gateway "
                              "(default: sim-<pid>)")
@@ -264,6 +268,8 @@ def main() -> None:
                         help="loop iterations before exit; default runs "
                              "~69 days at speed 1 (10k was ~3 min at 60x)")
     args = parser.parse_args()
+    if not args.token:
+        parser.error("--token or DEVICE_TOKEN env var is required")
 
     device_id = args.device_id or f"sim-{os.getpid()}"
     dev = SimDevice(args.gateway, args.token, device_id=device_id,
