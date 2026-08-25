@@ -7,7 +7,7 @@ and each question maps to a distinct kind of evidence:
 
 | # | Question | Evidence |
 |---|---|---|
-| Q1 | **Plumbing** — does the loop work: sensing, context, dispatch, ack, persistence? | 88 unit/integration tests (§5.2) |
+| Q1 | **Plumbing** — does the loop work: sensing, context, dispatch, ack, persistence? | 113 unit/integration tests (§5.2) |
 | Q2 | **Behavior** — given scripted disturbances, does the agent take the specified actions and refrain from forbidden ones? | 19-case behavior suite (§5.3–§5.4) |
 | Q3 | **Robustness** — does safety survive a failed model and a hostile context? | fallback + adversarial suites (§5.4) |
 | Q4 | **Quality** — at what rates does the agent hallucinate, get rejected, fall back, and how fast is it? | quality metrics + gates (§5.4, §5.9) |
@@ -29,10 +29,10 @@ it with Claim B. A live failure would otherwise be undebuggable: is the
 model hallucinating, or is the harness miscounting? By certifying the
 harness first, any future live failure has exactly one place to live.
 
-## 5.2 Q1 — Plumbing: 96 tests
+## 5.2 Q1 — Plumbing: 113 tests
 
-`pytest gateway/tests simulator/tests evals/tests tests -q` → **96
-passed** in ~15 s: 50 gateway, 17 simulator, 29 evals/acceptance.
+`pytest gateway/tests simulator/tests evals/tests tests -q` → **113
+passed** in ~15 s: 64 gateway, 17 simulator, 32 evals/acceptance.
 
 Coverage is organized around the safety claims rather than the module
 list:
@@ -160,7 +160,7 @@ model), which is why it is observed rather than gated. **Fallback rate**
 the decision layer. **p95 latency** = 95th percentile of recorded
 cycle latencies, against the SPEC's ten-second event→ack budget.
 
-Run `20260817T013509855302Z`, git `5d60b11`, all four suites:
+Run `20260817T013509855302Z`, git `9e4a390`, all four suites:
 
 | Metric | Result | Gate |
 |---|---:|---|
@@ -406,7 +406,7 @@ cd BoundedAutonomy   # your clone directory
 Determinism is deliberate: the mock client is a pure function of the
 context, the simulator's RNG is seeded (`Random(42)`), generated cases
 take `--seed`, and every run JSON records the git SHA it ran against
-(the reference run above: `5d60b11`). The live commands are identical
+(the reference run above: `9e4a390`). The live commands are identical
 with `--mode live`; only their results are pending.
 
 ## 5.9 Summary
