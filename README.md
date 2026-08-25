@@ -76,7 +76,7 @@ port — use **8010** (Docker often claims 8000/8002).
 **1. Environment**
 
 ```powershell
-cd Bounded Autonomy   # your clone directory
+cd BoundedAutonomy   # your clone directory
 python -m venv .venv
 .venv\Scripts\pip install -r gateway\requirements.txt
 ```
@@ -231,7 +231,7 @@ You can also trigger runs from the dashboard's **Evals** view or the API
 ## Status
 
 M1–M6 complete: gateway, simulator, agent loop, eval suite, WS bus,
-frontend SPA — **96 tests passing**
+frontend SPA — **113 tests passing**
 (`pytest gateway/tests simulator/tests evals/tests tests -q`).
 Firmware written and compiling clean for `esp32:esp32:esp32`, runnable
 under Wokwi emulation (see above); M7–M8 remaining: real-hardware

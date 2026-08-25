@@ -8,12 +8,12 @@ identically in rehearsal and performance.
 ## Pre-flight (30 min before)
 
 ```powershell
-cd Bounded Autonomy   # your clone directory
+cd BoundedAutonomy   # your clone directory
 .venv\Scripts\pip install -r gateway\requirements.txt   # sanity
 .venv\Scripts\python -m pytest gateway/tests simulator/tests evals/tests tests -q
 ```
 
-Expect: **96 passed**. If anything is red, fix it before the defense —
+Expect: **113 passed**. If anything is red, fix it before the defense —
 never demo on a red suite.
 
 Confirm `.env` has a valid `XAI_API_KEY` and `DEVICE_TOKEN`. Build the
@@ -116,7 +116,7 @@ Two full run-throughs, from a cold boot of all three terminals, timed:
 
 | Checkpoint | Target |
 |---|---|
-| Pre-flight (deps, 96 tests, key validation, build) | < 10 min |
+| Pre-flight (deps, 113 tests, key validation, build) | < 10 min |
 | Beat 1 heat_spike: scenario start → fan visible | < 40 s |
 | Beat 2 night_intruder: swap → LED white | < 30 s |
 | Beat 3 fallback: outage → fan via rules → restore | < 45 s |

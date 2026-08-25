@@ -157,11 +157,11 @@ artifact — run ID, git SHA, pytest invocation.*
 > not the model. The live campaign is staged and gated; I'm reporting it
 > as future work, not borrowing it as a result."
 
-## Slide 13 — 96 tests + commit gate (9:40–10:20)
+## Slide 13 — 113 tests + commit gate (9:40–10:20)
 
-Test breakdown: 50 gateway / 17 simulator / 29 evals+acceptance.
+Test breakdown: 64 gateway / 17 simulator / 32 evals+acceptance.
 
-> "Ninety-six tests underneath — every 'must' and 'never' in the design
+> "A hundred and thirteen tests underneath — every 'must' and 'never' in the design
 > chapter has a test — and a pre-commit hook runs the tests *and* the
 > mock eval suite on every commit. Safety here is not a document; it's an
 > executable artifact re-proven dozens of times a day."
@@ -211,7 +211,7 @@ guardrail spec, evaluation methodology, working open system.
 > *Delivery note: state these as claims with receipts — "a reference
 > architecture (Chapter 3, and it's running behind me)", "a guardrail
 > spec (112 lines, Appendix B)", "a methodology (the suite you just
-> watched pass)", "a system (68 commits, 96 tests, one week)." The
+> watched pass)", "a system (68 commits, 113 tests, one week)." The
 > receipts are the rhetoric.*
 
 ## Slide 18 — Closing (14:30–15:00)
@@ -239,7 +239,7 @@ have open in tabs: SPEC §5 (normative guardrail text), the latest
 - If the demo room has no network, jump to contingency one in the
   runbook *before* slide 14, not during it — narrating a saved run JSON
   confidently beats apologizing over a loading spinner.
-- Numbers to have memorized cold: 19/19, 0.000, 9.4 ms, 96 tests, 4
+- Numbers to have memorized cold: 19/19, 0.000, 9.4 ms, 113 tests, 4
   rules, 5 calls, 10 seconds, 30 seconds, 90 degrees — and the ablation
   pair: 3/3 with the prompt deleted, 0/3 with the boundary removed.
 

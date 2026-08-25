@@ -259,7 +259,7 @@ instead of describing it.
 The system was built milestone-first under three standing disciplines:
 
 1. **TDD.** Failing test first, then implementation. The suite now stands
-   at 96 tests — 50 gateway, 17 simulator, 29 evals/acceptance — and
+   at 113 tests — 64 gateway, 17 simulator, 32 evals/acceptance — and
    covers the agent cycle, every guardrail rule, the sanitization
    boundary's motion/trigger/history channels, the command queue's
    dedupe and ack semantics, startup memory pruning, the WS bus, static
@@ -334,7 +334,7 @@ safety property that is already decaying.
 
 ### 4.6.2 Testing strategy: what is tested where
 
-The 96 tests are placed deliberately across three altitudes, and the
+The 113 tests are placed deliberately across three altitudes, and the
 altitude of each test was chosen by asking "what is the cheapest level
 that would catch this defect?":
 

@@ -18,7 +18,7 @@ absent, and is deliberately narrower than the model so that failure moves
 toward silence. The evaluation harness proves all of it on every commit:
 19/19 behavior cases across normative, boundary, adversarial, and
 fallback suites; zero hallucinated tool calls in 32 dispatches; zero
-guardrail violations; 96 tests underneath; and a commit gate that
+guardrail violations; 113 tests underneath; and a commit gate that
 re-runs everything dozens of times a day.
 
 Three findings stand out beyond the headline numbers:

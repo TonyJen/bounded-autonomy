@@ -44,7 +44,7 @@ is the protagonist. The slides argue; the demo exhibits; the Q&A
 
 - [ ] Full run-through twice, timed, from a cold boot of all three terminals
 - [ ] Screen-record a full backup demo during rehearsal (contingency)
-- [ ] Verify `pytest … -q` → 96 passed on defense morning
+- [ ] Verify `pytest … -q` → 113 passed on defense morning
 - [ ] Verify `.env` key is valid with one `--mode live` case
 - [ ] Tabs pre-opened: Device / Agent / Evals views, `/docs`, SPEC §5,
       latest JSON in `evals/results/`

@@ -93,7 +93,8 @@ rolling-hour budget.
 | `XAI_API_KEY` | Grok API key (required for live agent) | — |
 | `XAI_BASE_URL` | xAI API base | `https://api.x.ai/v1` |
 | `XAI_MODEL` | model name | `grok-4.5` |
-| `DEVICE_TOKEN` | device shared secret (`X-Device-Token` header) | `dev-token` |
+| `DEVICE_TOKEN` | device shared secret (`X-Device-Token` header) | random per boot |
+| `OPERATOR_TOKEN` | remote access to operator endpoints (loopback always allowed) | unset = remote denied |
 | `BOUNDED_AUTONOMY_DB` | SQLite path | `gateway/bounded_autonomy.db` |
 | `GATEWAY_HOST` / `GATEWAY_PORT` | bind address | `0.0.0.0` / `8000` |
 | `EVAL_RESULTS_DIR` | eval-run persistence | `evals/results` |

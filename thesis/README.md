@@ -46,7 +46,7 @@ hardware, live-model eval campaigns), the text says so explicitly.
 | 01 Introduction | ~1,900 | Two loops, the iff statement, a worked example at 35 °C |
 | 02 Background | ~2,500 | Agents, injection, control engineering, evaluation — and the gap between them |
 | 03 Design | ~3,400 | Three tiers, the sanitization boundary, four guardrails, the fallback, the protocol, the threat model |
-| 04 Implementation | ~3,000 | Four components, seven days, 68 commits, 96 tests at three altitudes |
+| 04 Implementation | ~3,000 | Four components, seven days, 68 commits, 113 tests at three altitudes |
 | 05 Evaluation | ~3,300 | 19/19 across four suites, per-case narrative, gates as contracts, the §5.7 ablation, honest threats |
 | 06 Conclusion | ~1,300 | Findings, lessons, future work, and what the week actually looked like |
 | 07 Bibliography | ~550 | Eleven annotated references plus the primary source: this repo |
