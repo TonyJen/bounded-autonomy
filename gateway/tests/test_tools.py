@@ -83,3 +83,28 @@ async def test_log_observation_no_dispatch(tmp_path):
     r = await tools.execute("d1", "log_observation", {"note": "quiet"}, {})
     assert r["ok"] is True
     assert mem.commands_after("d1", 0) == []  # nothing physical queued
+
+
+@pytest.mark.asyncio
+async def test_fan_short_cycle_survives_restart(tmp_path):
+    """Guardrail state is derived from the durable commands table: a fresh
+    ToolRegistry (gateway restart) still sees the last fan flip."""
+    tools, mem = make_tools(tmp_path)
+    assert (await tools.execute("d1", "set_fan", {"on": True}, {}))["ok"]
+    restarted = ToolRegistry(DeviceRegistry(mem))  # new instance, same DB
+    r = await restarted.execute("d1", "set_fan", {"on": False}, {})
+    assert r["ok"] is False and "short-cycle" in r["error"]
+
+
+@pytest.mark.asyncio
+async def test_buzzer_budget_survives_restart(tmp_path):
+    """Same for the rolling buzzer budget: 9.4s used pre-restart leaves
+    no room for another 3s siren post-restart."""
+    tools, mem = make_tools(tmp_path)
+    ctx = {"motion_ts": time.time()}
+    for _ in range(3):
+        assert (await tools.execute("d1", "buzzer", {"pattern": "siren"}, ctx))["ok"]
+    assert (await tools.execute("d1", "buzzer", {"pattern": "double"}, ctx))["ok"]
+    restarted = ToolRegistry(DeviceRegistry(mem))
+    r = await restarted.execute("d1", "buzzer", {"pattern": "siren"}, ctx)
+    assert r["ok"] is False and "budget" in r["error"]

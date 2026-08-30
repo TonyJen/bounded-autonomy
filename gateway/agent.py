@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -60,10 +61,12 @@ def _motion(value):
 _TRIGGER_RE = re.compile(r"[a-z0-9_]{1,32}")
 
 
-def _trigger(value):
+def sanitize_trigger(value):
     """Triggers come from a small device vocabulary (motion, periodic,
     temp_threshold, ...). Anything else — e.g. prose smuggled into the
-    field — is replaced, not passed on to the model."""
+    field — is replaced, not passed on to the model. Also used by the
+    gateway's event cooldown so injected strings can't mint fresh
+    cooldown buckets."""
     if isinstance(value, str) and _TRIGGER_RE.fullmatch(value):
         return value
     return "invalid"
@@ -75,7 +78,7 @@ def sanitize_snapshot(snapshot: dict) -> dict:
     number-or-None, motion to bool-or-None, trigger to vocabulary-or-
     'invalid'. Total: every field, every cycle."""
     return {**snapshot,
-            "trigger": _trigger(snapshot.get("trigger")),
+            "trigger": sanitize_trigger(snapshot.get("trigger")),
             "temp_c": _numeric(snapshot.get("temp_c")),
             "humidity_pct": _numeric(snapshot.get("humidity_pct")),
             "light": _numeric(snapshot.get("light")),
@@ -133,6 +136,7 @@ class Agent:
     # ablations (--ablate sanitize) that measure the boundary's effect.
     sanitize = True
     system_prompt = SYSTEM_PROMPT
+    led_auto_off_s = 30.0  # SPEC §4.1; tests shrink the window
 
     def __init__(self, memory: Memory, tools: ToolRegistry, client,
                  *, sanitize: bool = True, system_prompt: str | None = None):
@@ -182,13 +186,43 @@ class Agent:
         ]
 
     async def _execute_call(self, device_id: str, name: str, args: dict) -> dict:
-        """Execute one tool call; convert failures into a tool-result error."""
+        """Execute one tool call; convert failures into a tool-result error.
+        Results carry `correctable`: True only for failures the model can
+        plausibly fix itself — bad argument values and unknown tool names.
+        Guardrail/policy rejections (rate limits, budgets, preconditions)
+        are not correctable: retrying them just re-attempts the abuse."""
         try:
             result = await self.tools.execute(
                 device_id, name, args, {"motion_ts": self._last_motion_ts})
-        except (GuardrailError, ValueError, TypeError) as e:
-            return {"ok": False, "error": str(e)}
+        except (ValueError, TypeError) as e:
+            return {"ok": False, "error": str(e), "correctable": True}
+        except GuardrailError as e:
+            return {"ok": False, "error": str(e), "correctable": False}
+        if not result.get("ok"):
+            result["correctable"] = result.get("error", "").startswith(
+                "unknown tool")
         return result
+
+    async def _chat_and_execute(self, device_id: str, messages: list,
+                                calls: list, results: list) -> tuple:
+        """One chat round: execute every returned tool call, appending to
+        calls/results. Returns (response, assistant message, this round's
+        (tool_call, result) pairs)."""
+        resp = await self.client.chat(messages, TOOL_SCHEMAS)
+        message = resp["choices"][0]["message"]
+        raw_calls = message.get("tool_calls") or []
+        round_pairs = []
+        for tc in raw_calls:
+            name = tc["function"]["name"]
+            try:
+                args = json.loads(tc["function"].get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            calls.append({"name": name, "args": args})
+            result = await self._execute_call(device_id, name, args)
+            results.append(result)
+            round_pairs.append((tc, result))
+        return resp, message, round_pairs
 
     async def run_cycle(self, snapshot: dict) -> dict:
         if self.sanitize:
@@ -199,20 +233,29 @@ class Agent:
 
         self.tools.begin_cycle()
         try:
-            resp = await self.client.chat(self.build_context(snapshot),
-                                          TOOL_SCHEMAS)
-            message = resp["choices"][0]["message"]
-            raw_calls = message.get("tool_calls") or []
             calls, results = [], []
-            for tc in raw_calls:
-                name = tc["function"]["name"]
+            messages = self.build_context(snapshot)
+            resp, message, round1 = await self._chat_and_execute(
+                snapshot["device_id"], messages, calls, results)
+            # SPEC §4 step 5: validation errors are fed back as tool
+            # results so the model can self-correct — max 1 correction
+            # round-trip per cycle, and only for CORRECTABLE failures
+            # (never for guardrail/policy rejections).
+            if any(r.get("correctable") for _, r in round1):
+                # API responses may omit "role"; the protocol requires it
+                # on history messages, so normalize before appending.
+                assistant_msg = {"role": "assistant", **message}
+                correction = messages + [assistant_msg] + [
+                    {"role": "tool", "tool_call_id": tc.get("id", ""),
+                     "content": json.dumps(r)} for tc, r in round1]
                 try:
-                    args = json.loads(tc["function"].get("arguments") or "{}")
-                except json.JSONDecodeError:
-                    args = {}
-                calls.append({"name": name, "args": args})
-                results.append(await self._execute_call(
-                    snapshot["device_id"], name, args))
+                    resp, _, _ = await self._chat_and_execute(
+                        snapshot["device_id"], correction, calls, results)
+                except GrokError:
+                    # The retry is expendable; round-1's successful physical
+                    # dispatches are not. Keep them, skip the fallback.
+                    logger.warning("correction round-trip failed; keeping "
+                                   "round-1 results")
             latency = (time.monotonic() - start) * 1000
             self.memory.record_decision(
                 snapshot.get("trigger", "?"), "agent",
@@ -229,6 +272,12 @@ class Agent:
             for c in calls:
                 results.append(await self._execute_call(
                     snapshot["device_id"], c["name"], c["args"]))
+            # SPEC §4.1: the night-motion white LED auto-off after 30s.
+            for c, r in zip(calls, results):
+                if (c["name"] == "set_led" and c["args"].get("color") == "white"
+                        and r.get("ok")):
+                    asyncio.create_task(self._led_auto_off(
+                        snapshot["device_id"], self.led_auto_off_s))
             latency = (time.monotonic() - start) * 1000
             self.memory.record_decision(
                 snapshot.get("trigger", "?"), "fallback",
@@ -236,6 +285,25 @@ class Agent:
             return {"source": "fallback", "tool_calls": calls,
                     "results": results, "latency_ms": round(latency, 1),
                     "usage": {}}
+
+    async def _led_auto_off(self, device_id: str, delay_s: float) -> None:
+        """Turn the fallback's white LED off after the window — only if the
+        device still REPORTS it white (something else may have changed it
+        since). The timer is in-process: a gateway restart within the
+        window loses it and the LED stays on — fails visible, never
+        dark-on-motion."""
+        try:
+            await asyncio.sleep(delay_s)
+        except asyncio.CancelledError:
+            return  # eval/test loops close with the timer pending
+        if self.memory is None:
+            return
+        latest = self.memory.latest_snapshot()
+        led = ((_snapshot_actuators(latest) or {}).get("led")
+               if latest else None)
+        if led == {"r": 255, "g": 255, "b": 255}:
+            await self.tools.execute(device_id, "set_led",
+                                     {"color": "off"}, {})
 
     def fallback(self, snapshot: dict) -> list[dict]:
         actions = []

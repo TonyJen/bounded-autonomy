@@ -256,8 +256,11 @@ def test_quality_metrics_and_gates(tmp_path):
         runner.MockGrokClient = orig_mock
     q = out["summary"]["quality"]
     assert q["hallucination_rate"] == 1.0
-    assert q["unknown_tools"] == 1
-    assert q["rejected_calls"] == 1  # unknown tool rejected by registry
+    # an unknown-tool rejection is correctable (SPEC §4 step 5): the error is
+    # fed back and this stubborn client hallucinates again on the retry, so
+    # each metric counts BOTH attempts — the model was told and repeated it
+    assert q["unknown_tools"] == 2
+    assert q["rejected_calls"] == 2  # unknown tool rejected by registry, twice
     assert out["gates"]["passed"] is False
     assert any("hallucination_rate" in f for f in out["gates"]["failures"])
 

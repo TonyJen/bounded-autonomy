@@ -30,6 +30,61 @@ def test_command_lifecycle(tmp_path):
     assert mem.commands_after("esp32-01", 0) == []
 
 
+def test_last_decision_ts_for_trigger_empty(tmp_path):
+    mem = make_mem(tmp_path)
+    assert mem.last_decision_ts_for_trigger("motion") is None
+
+
+def test_last_decision_ts_for_trigger_returns_latest_matching(tmp_path):
+    mem = make_mem(tmp_path)
+    mem.record_decision("motion", "agent", {}, [], 1.0, {})
+    mem.record_decision("periodic", "agent", {}, [], 1.0, {})
+    mem.record_decision("motion", "fallback", {}, [], 1.0, {})
+    ts = mem.last_decision_ts_for_trigger("motion")
+    assert ts is not None
+    # latest matching row, not the periodic one
+    conn = get_conn(mem.db_path)
+    row = conn.execute(
+        "SELECT id, ts FROM decisions WHERE trigger='motion'"
+        " ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    assert ts == row["ts"]
+
+
+def test_last_action_ts_empty(tmp_path):
+    mem = make_mem(tmp_path)
+    assert mem.last_action_ts("set_fan") is None
+
+
+def test_last_action_ts_ignores_failed(tmp_path):
+    """Failed dispatches never actuated — they must not arm rate guards."""
+    mem = make_mem(tmp_path)
+    mem.queue_command("d1", "set_fan", {"on": True}, "cmd_a")
+    mem.queue_command("d1", "set_fan", {"on": False}, "cmd_b")
+    mem.set_command_status("cmd_b", "failed", "device rejected")
+    conn = get_conn(mem.db_path)
+    row = conn.execute(
+        "SELECT ts FROM commands WHERE cmd_id='cmd_a'").fetchone()
+    conn.close()
+    assert mem.last_action_ts("set_fan") == row["ts"]
+
+
+def test_recent_action_args_filters_action_and_window(tmp_path):
+    mem = make_mem(tmp_path)
+    mem.queue_command("d1", "buzzer", {"pattern": "siren"}, "cmd_1")
+    mem.queue_command("d1", "set_fan", {"on": True}, "cmd_2")
+    # backdate a third command beyond the window
+    mem.queue_command("d1", "buzzer", {"pattern": "short"}, "cmd_3")
+    conn = get_conn(mem.db_path)
+    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    conn.execute("UPDATE commands SET ts=? WHERE cmd_id='cmd_3'", (old,))
+    conn.commit()
+    conn.close()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    args = mem.recent_action_args("buzzer", cutoff)
+    assert args == [{"pattern": "siren"}]
+
+
 def test_mark_pushed_only_from_queued(tmp_path):
     """Once the sim's fast push response lets the device's ack arrive before
     the gateway marks the push complete, 'pushed' must not clobber 'acked'

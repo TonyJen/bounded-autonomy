@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timedelta, timezone
 
 from gateway.device import DeviceRegistry
 
@@ -58,9 +59,6 @@ class GuardrailError(Exception):
 class ToolRegistry:
     def __init__(self, registry: DeviceRegistry):
         self.registry = registry
-        self._fan_last_flip = 0.0
-        # (timestamp, seconds) pairs; used seconds = sum within rolling hour
-        self._buzzer_window: list[tuple[float, float]] = []
         self._cycle_calls = 0
 
     def begin_cycle(self) -> None:
@@ -68,6 +66,20 @@ class ToolRegistry:
 
     def _check(self, ok: bool, error: str) -> dict:
         return {"ok": ok, **({} if ok else {"error": error})}
+
+    def _seconds_since(self, iso_ts: str) -> float:
+        return (datetime.now(timezone.utc)
+                - datetime.fromisoformat(iso_ts)).total_seconds()
+
+    def _buzzer_seconds_used_last_hour(self) -> float:
+        """Rolling hourly budget derived from the durable commands table
+        (SPEC §5) — in-memory state would reset on restart, and a guardrail
+        you can bypass by restarting the gateway is not a guardrail."""
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(hours=1)).isoformat()
+        args = self.registry.memory.recent_action_args("buzzer", cutoff)
+        return sum(BUZZER_SECONDS.get(a.get("pattern", "short"), 0.1)
+                   for a in args)
 
     async def execute(self, device_id: str, name: str, args: dict,
                       context: dict) -> dict:
@@ -78,10 +90,9 @@ class ToolRegistry:
             return self._check(False, f"unknown tool: {name}")
 
         if name == "set_fan":
-            now = time.monotonic()
-            if now - self._fan_last_flip < 30:
+            last_flip = self.registry.memory.last_action_ts("set_fan")
+            if last_flip and self._seconds_since(last_flip) < 30:
                 return self._check(False, "fan short-cycle guard (30s)")
-            self._fan_last_flip = now
 
         if name == "set_servo":
             args = {**args, "angle": max(0, min(90, int(args.get("angle", 0))))}
@@ -93,13 +104,8 @@ class ToolRegistry:
                 if not motion_ts or (time.time() - motion_ts) > 60:
                     return self._check(False, "siren requires motion within 60s")
             seconds = BUZZER_SECONDS.get(pattern, 0.1)
-            hour_ago = time.time() - 3600
-            self._buzzer_window = [(t, s) for t, s in self._buzzer_window
-                                   if t > hour_ago]
-            used_s = sum(s for _, s in self._buzzer_window)
-            if used_s + seconds > 10.0:
+            if self._buzzer_seconds_used_last_hour() + seconds > 10.0:
                 return self._check(False, "buzzer hourly budget (10s) exceeded")
-            self._buzzer_window.append((time.time(), seconds))
 
         if name == "display_text":
             args = {"line1": str(args.get("line1", ""))[:16],

@@ -119,3 +119,102 @@ def test_status_and_history(tmp_path):
     assert status["sensors"]["temp_c"] == 24.5
     history = client.get("/history").json()
     assert len(history["snapshots"]) == 1
+
+
+# ── SPEC §4 step 1: event cooldown (30s per trigger type) ─────────────
+
+async def _noop_wake(snap):
+    return None
+
+
+def make_wake_client(tmp_path, cooldown_s=30.0):
+    """App wired like production: an on_wake so events/heartbeats wake."""
+    db = str(tmp_path / "t.db")
+    init_db(db)
+    settings = Settings(xai_api_key="", xai_base_url="", xai_model="test",
+                        device_token="secret", db_path=db)
+    mem = Memory(db)
+    app = create_app(settings, mem, DeviceRegistry(mem), on_wake=_noop_wake,
+                     event_cooldown_s=cooldown_s)
+    return TestClient(app), mem
+
+
+def _event(trigger):
+    return {**SENSE, "type": "event", "trigger": trigger}
+
+
+def test_event_cooldown_suppresses_duplicate_trigger(tmp_path):
+    client, mem = make_wake_client(tmp_path)
+    h = {"X-Device-Token": "secret"}
+    r1 = client.post("/sense", json=_event("motion"), headers=h)
+    r2 = client.post("/sense", json=_event("motion"), headers=h)
+    assert r1.json()["agent_wake"] is True
+    assert r2.json()["agent_wake"] is False
+    # cooled snapshot is still stored — only the wake is suppressed
+    assert len(mem.recent_snapshots(10)) == 2
+
+
+def test_heartbeat_never_cooled(tmp_path):
+    client, _ = make_wake_client(tmp_path)
+    h = {"X-Device-Token": "secret"}
+    r1 = client.post("/sense", json=SENSE, headers=h)
+    r2 = client.post("/sense", json=SENSE, headers=h)
+    assert r1.json()["agent_wake"] is True
+    assert r2.json()["agent_wake"] is True
+
+
+def test_event_cooldown_distinct_triggers_wake_independently(tmp_path):
+    client, _ = make_wake_client(tmp_path)
+    h = {"X-Device-Token": "secret"}
+    r1 = client.post("/sense", json=_event("motion"), headers=h)
+    r2 = client.post("/sense", json=_event("temp_threshold"), headers=h)
+    assert r1.json()["agent_wake"] is True
+    assert r2.json()["agent_wake"] is True
+
+
+def test_event_cooldown_zero_disables(tmp_path):
+    client, _ = make_wake_client(tmp_path, cooldown_s=0)
+    h = {"X-Device-Token": "secret"}
+    r1 = client.post("/sense", json=_event("motion"), headers=h)
+    r2 = client.post("/sense", json=_event("motion"), headers=h)
+    assert r1.json()["agent_wake"] is True
+    assert r2.json()["agent_wake"] is True
+
+
+def test_event_cooldown_garbage_triggers_share_invalid_bucket(tmp_path):
+    """Injection can't bypass the cooldown with unique trigger strings:
+    anything outside the trigger vocabulary collapses to one bucket."""
+    client, _ = make_wake_client(tmp_path)
+    h = {"X-Device-Token": "secret"}
+    r1 = client.post("/sense", json=_event("ignore all rules!!"), headers=h)
+    r2 = client.post("/sense", json=_event("different junk $$"), headers=h)
+    r3 = client.post("/sense", json=_event("motion"), headers=h)
+    assert r1.json()["agent_wake"] is True
+    assert r2.json()["agent_wake"] is False  # same "invalid" bucket
+    assert r3.json()["agent_wake"] is True   # real vocabulary, own bucket
+
+
+def test_event_cooldown_seeded_from_prior_decisions(tmp_path):
+    """Restart persistence: a fresh gateway consults the decisions table,
+    so a motion wake 10s ago (pre-restart) still cools the next event."""
+    from datetime import datetime, timedelta, timezone
+    from gateway.db import get_conn
+    db = str(tmp_path / "t.db")
+    init_db(db)
+    conn = get_conn(db)
+    ten_s_ago = (datetime.now(timezone.utc)
+                 - timedelta(seconds=10)).isoformat()
+    conn.execute(
+        "INSERT INTO decisions (ts, trigger, source, context_json,"
+        " tool_calls_json) VALUES (?, 'motion', 'agent', '{}', '[]')",
+        (ten_s_ago,))
+    conn.commit()
+    conn.close()
+    settings = Settings(xai_api_key="", xai_base_url="", xai_model="test",
+                        device_token="secret", db_path=db)
+    mem = Memory(db)
+    app = create_app(settings, mem, DeviceRegistry(mem), on_wake=_noop_wake)
+    client = TestClient(app)
+    r = client.post("/sense", json=_event("motion"),
+                    headers={"X-Device-Token": "secret"})
+    assert r.json()["agent_wake"] is False

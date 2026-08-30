@@ -137,6 +137,163 @@ def test_context_includes_snapshot():
     assert "35.0" in msgs[-1]["content"]
 
 
+class ScriptableClient:
+    """Returns queued responses in order; raises GrokError on 'FAIL'."""
+
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def chat(self, messages, tools):
+        self.calls.append({"messages": messages, "tools": tools})
+        resp = self.responses[min(len(self.calls) - 1,
+                                  len(self.responses) - 1)]
+        if resp == "FAIL":
+            raise GrokError("api down")
+        return resp
+
+
+def _resp(*calls):
+    return {"choices": [{"message": {"tool_calls": list(calls)}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+
+
+# ── SPEC §4 step 5: correction round-trip — correctable errors only ───
+
+@pytest.mark.asyncio
+async def test_guardrail_rejection_is_not_retried(tmp_path):
+    """Policy rejections (rate limits, budgets, preconditions) are not
+    mistakes the model can fix — they must NOT trigger a correction
+    round-trip, or a rejected abuse attempt would be immediately
+    re-attempted (and double-counted by the attempt-measuring evals)."""
+    client = ScriptableClient(
+        _resp(tool_call("buzzer", {"pattern": "siren"}, _id="t1")))
+    agent, _ = make_agent(tmp_path, client)
+    # no recent motion → siren precondition reject (policy, not bad args)
+    out = await agent.run_cycle({**SNAP, "motion": 0})
+    assert out["results"][0]["ok"] is False
+    assert len(client.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_unknown_tool_is_retried(tmp_path):
+    """A hallucinated tool name is correctable — the model is told the name
+    is invalid and gets one chance to use the real vocabulary."""
+    client = ScriptableClient(
+        _resp(tool_call("turn_on_fan", {}, _id="t1")),
+        _resp(tool_call("set_fan", {"on": True}, _id="t2")))
+    agent, mem = make_agent(tmp_path, client)
+    out = await agent.run_cycle(SNAP)
+    assert len(client.calls) == 2
+    actions = [c["action"] for c in mem.commands_after("d1", 0)]
+    assert actions == ["set_fan"]
+    assert out["results"][-1]["ok"] is True
+
+@pytest.mark.asyncio
+async def test_validation_errors_fed_back_for_one_retry(tmp_path):
+    """Round 1 has a bad-args call; round 2 must carry the error back to the
+    model as a tool result, and the corrected call is executed."""
+    import json as _json
+    client = ScriptableClient(
+        _resp(tool_call("set_servo", {"angle": "ninety"}, _id="t1")),
+        _resp(tool_call("set_servo", {"angle": 45}, _id="t2")))
+    agent, mem = make_agent(tmp_path, client)
+    out = await agent.run_cycle(SNAP)
+    assert len(client.calls) == 2
+    # round-2 messages: original context + assistant turn + tool results
+    round2 = client.calls[1]["messages"]
+    assert round2[1]["role"] == "assistant" or any(
+        m.get("role") == "assistant" for m in round2)
+    tool_msgs = [m for m in round2 if m.get("role") == "tool"]
+    assert tool_msgs and tool_msgs[0]["tool_call_id"] == "t1"
+    assert "error" in _json.loads(tool_msgs[0]["content"])
+    # corrected call dispatched
+    actions = [c["action"] for c in mem.commands_after("d1", 0)]
+    assert actions == ["set_servo"]
+    assert out["results"][-1]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_correction_round_trip_happens_at_most_once(tmp_path):
+    """SPEC §4 step 5: max 1 correction round-trip per cycle — a model that
+    keeps returning bad args gets exactly one retry, not a loop."""
+    client = ScriptableClient(
+        _resp(tool_call("set_servo", {"angle": "ninety"}, _id="t1")))
+    agent, _ = make_agent(tmp_path, client)
+    out = await agent.run_cycle(SNAP)
+    assert len(client.calls) == 2
+    assert all(r["ok"] is False for r in out["results"])
+
+
+@pytest.mark.asyncio
+async def test_retry_failure_keeps_round1_dispatches(tmp_path):
+    """If the retry call itself fails (GrokError), round-1's successful
+    dispatches stand — physical actions already taken are not undone, and
+    the cycle is NOT rerouted through the rules fallback."""
+    client = ScriptableClient(
+        {"choices": [{"message": {"tool_calls": [
+            tool_call("set_fan", {"on": True}, _id="t1"),
+            tool_call("set_servo", {"angle": "ninety"}, _id="t2")]}}],
+         "usage": {}},
+        "FAIL")
+    agent, mem = make_agent(tmp_path, client)
+    out = await agent.run_cycle(SNAP)
+    assert len(client.calls) == 2  # the retry was attempted and failed
+    assert out["source"] == "agent"
+    actions = [c["action"] for c in mem.commands_after("d1", 0)]
+    assert actions == ["set_fan"]  # the good call, dispatched in round 1
+
+
+# ── SPEC §4.1: fallback white LED auto-off after 30s ──────────────────
+
+@pytest.mark.asyncio
+async def test_fallback_white_led_auto_off(tmp_path):
+    """Night-motion fallback lights the LED white; 30s later the gateway
+    turns it off — through the same guardrailed dispatch path."""
+    agent, mem = make_agent(tmp_path, StubClient(fail=True))
+    agent.led_auto_off_s = 0.01
+    white = {"r": 255, "g": 255, "b": 255}
+    dark = {**SNAP, "temp_c": 22.0, "light": 50, "motion": 1}
+    mem.insert_snapshot("d1", "event", "motion",
+                        {"temp_c": 22.0, "humidity_pct": 40.0, "light": 50,
+                         "motion": True},
+                        {**dark, "actuators": {"led": white}})
+    out = await agent.run_cycle(dark)
+    assert {"name": "set_led", "args": {"color": "white"}} in out["tool_calls"]
+    import asyncio
+    await asyncio.sleep(0.3)
+    actions = [(c["action"], _json_loads(c["args_json"]).get("color"))
+               for c in mem.commands_after("d1", 0)]
+    assert ("set_led", "white") in actions
+    assert ("set_led", "off") in actions
+
+
+@pytest.mark.asyncio
+async def test_fallback_led_auto_off_suppressed_if_led_changed(tmp_path):
+    """If the device no longer reports the LED white (the agent or an
+    operator changed it since), the auto-off must not fire."""
+    agent, mem = make_agent(tmp_path, StubClient(fail=True))
+    agent.led_auto_off_s = 0.01
+    red = {"r": 255, "g": 0, "b": 0}
+    dark = {**SNAP, "temp_c": 22.0, "light": 50, "motion": 1}
+    mem.insert_snapshot("d1", "event", "motion",
+                        {"temp_c": 22.0, "humidity_pct": 40.0, "light": 50,
+                         "motion": True},
+                        {**dark, "actuators": {"led": red}})
+    await agent.run_cycle(dark)
+    import asyncio
+    await asyncio.sleep(0.3)
+    colors = [_json_loads(c["args_json"]).get("color")
+              for c in mem.commands_after("d1", 0)
+              if c["action"] == "set_led"]
+    assert "off" not in colors
+
+
+def _json_loads(s):
+    import json
+    return json.loads(s)
+
+
 @pytest.mark.asyncio
 async def test_motion_truthy_string_is_a_failed_read(tmp_path):
     """Injection guard: a truthy STRING in the motion field is a failed

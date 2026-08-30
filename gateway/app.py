@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -10,6 +11,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from gateway.agent import sanitize_trigger
 from gateway.auth import make_device_auth, make_operator_auth
 from gateway.config import Settings
 from gateway.device import DeviceRegistry
@@ -39,7 +41,8 @@ class AckPayload(BaseModel):
 
 def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
                on_wake=None,
-               events: ConnectionManager | None = None) -> FastAPI:
+               events: ConnectionManager | None = None,
+               event_cooldown_s: float = 30.0) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -51,6 +54,30 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
     app = FastAPI(title="Bounded Autonomy Gateway", lifespan=lifespan)
     auth = make_device_auth(settings.device_token)
     op_auth = make_operator_auth(settings.operator_token)
+
+    # SPEC §4 step 1: per-trigger event cooldown. The dict is updated
+    # synchronously at request time (a decision row lags — the wake is a
+    # background task), and seeded lazily from the decisions table so the
+    # cooldown survives restarts. Keys are the SANITIZED trigger vocabulary
+    # so injected strings can't mint fresh buckets.
+    event_last_wake: dict[str, datetime] = {}
+
+    def _event_cooled(trigger: str) -> bool:
+        if event_cooldown_s <= 0:
+            return False
+        key = sanitize_trigger(trigger)
+        now = datetime.now(timezone.utc)
+        last = event_last_wake.get(key)
+        if last is None:
+            ts = memory.last_decision_ts_for_trigger(key)
+            if ts:
+                last = datetime.fromisoformat(ts)
+                event_last_wake[key] = last
+        if last is not None \
+                and (now - last).total_seconds() < event_cooldown_s:
+            return True
+        event_last_wake[key] = now
+        return False
 
     @app.get("/health")
     async def health():
@@ -65,6 +92,8 @@ def create_app(settings: Settings, memory: Memory, registry: DeviceRegistry,
         registry.note_seen(payload.device_id, client_ip)
 
         wake = payload.type == "heartbeat" or payload.type == "event"
+        if wake and payload.type == "event":
+            wake = not _event_cooled(payload.trigger)
         if events is not None:
             await events.broadcast({"type": "snapshot",
                                     "data": payload.model_dump()})

@@ -73,6 +73,48 @@ class Memory:
         finally:
             conn.close()
 
+    def last_decision_ts_for_trigger(self, trigger: str) -> str | None:
+        """Most recent decision ts for a trigger — the durable record of
+        'when did this trigger last wake the agent' (SPEC §4 cooldown),
+        so the cooldown survives a gateway restart."""
+        conn = get_conn(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT ts FROM decisions WHERE trigger=?"
+                " ORDER BY id DESC LIMIT 1", (trigger,)).fetchone()
+            return row["ts"] if row else None
+        finally:
+            conn.close()
+
+    def last_action_ts(self, action: str) -> str | None:
+        """Most recent dispatched-command ts for an action. Excludes
+        'failed' (device rejected — nothing actuated, so it must not arm
+        rate guards). This is the durable backing for the tools.py
+        guardrails: rate limits must survive a gateway restart, or
+        'guardrails never trust the model' has a restart-sized hole."""
+        conn = get_conn(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT ts FROM commands WHERE action=?"
+                " AND status != 'failed' ORDER BY id DESC LIMIT 1",
+                (action,)).fetchone()
+            return row["ts"] if row else None
+        finally:
+            conn.close()
+
+    def recent_action_args(self, action: str, cutoff_iso: str) -> list[dict]:
+        """args dicts for dispatched [action] commands since cutoff_iso —
+        e.g. the rolling buzzer budget window (SPEC §5)."""
+        conn = get_conn(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT args_json FROM commands WHERE action=?"
+                " AND status != 'failed' AND ts >= ? ORDER BY id",
+                (action, cutoff_iso)).fetchall()
+            return [json.loads(r["args_json"]) for r in rows]
+        finally:
+            conn.close()
+
     def queue_command(self, device_id: str, action: str, args: dict,
                       cmd_id: str) -> None:
         conn = get_conn(self.db_path)
